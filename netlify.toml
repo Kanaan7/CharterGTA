@@ -3,6 +3,9 @@
   command = "npm run build"
   publish = ".netlify"
 
+[functions]
+  directory = "gta-boat-charter/netlify/functions"
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
