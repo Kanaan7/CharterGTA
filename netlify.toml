@@ -1,10 +1,10 @@
 [build]
   base = "gta-boat-charter"
   command = "npm run build"
-  publish = ".netlify"
+  publish = ".next"
 
 [functions]
-  directory = "gta-boat-charter/netlify/functions"
+  directory = "netlify/functions"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
