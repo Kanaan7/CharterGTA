@@ -1,4 +1,5 @@
 [build]
+  base = "gta-boat-charter"
   command = "npm run build"
   publish = ".next"
 
@@ -11,9 +12,4 @@
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
-  status = 200
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
   status = 200
