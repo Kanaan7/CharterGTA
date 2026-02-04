@@ -1,6 +1,7 @@
 [build]
   base = "gta-boat-charter"
   command = "npm run build"
+  publish = ".netlify"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
