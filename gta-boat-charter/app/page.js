@@ -17,7 +17,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 
-import { db, auth } from "../lib/firebase";
+import { db, auth, storage } from "../lib/firebase";
 import {
   collection,
   addDoc,
@@ -30,7 +30,9 @@ import {
   setDoc,
   getDoc,
   serverTimestamp,
+  deleteDoc,
 } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 import {
   signInWithPopup,
@@ -85,6 +87,15 @@ function buildSlotsFromRules(rules) {
   // if you want minHours enforced later, we'll use it at booking time
   return slots;
 }
+
+/* -------- Upload helper -------- */
+const uploadBoatImage = async (file, ownerId) => {
+  if (!file) return "";
+  const path = `boats/${ownerId}/${Date.now()}-${file.name}`;
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, file);
+  return await getDownloadURL(storageRef);
+};
 
 /* --------------------------- DatePicker --------------------------- */
 function DatePicker({ selectedDate, onSelectDate, rules }) {
@@ -332,6 +343,10 @@ export default function BoatCharterPlatform() {
     slotLength: 4,
     minHours: 4,
   });
+
+  const [newBoatImageFile, setNewBoatImageFile] = useState(null);
+  const [editingBoat, setEditingBoat] = useState(null);
+  const [editImageFile, setEditImageFile] = useState(null);
 
   /* -------- Auth state -------- */
   useEffect(() => {
@@ -596,13 +611,7 @@ useEffect(() => {
         .map((a) => a.trim())
         .filter(Boolean);
 
-      // You can edit later to real availability.
-      const today = new Date();
-      const plus = (n) => {
-        const d = new Date(today);
-        d.setDate(d.getDate() + n);
-        return d.toISOString().split("T")[0];
-      };
+      const uploadedUrl = await uploadBoatImage(newBoatImageFile, currentUser.uid);
 
       await addDoc(collection(db, "boats"), {
         name: newBoat.name,
@@ -613,6 +622,7 @@ useEffect(() => {
         description: newBoat.description,
         amenities: amenitiesArr,
         imageUrl:
+          uploadedUrl ||
           newBoat.imageUrl ||
           "https://images.unsplash.com/photo-1569263979104-865ab7cd8d13?w=800&q=80",
         ownerId: currentUser.uid,
@@ -630,6 +640,7 @@ useEffect(() => {
         createdAt: serverTimestamp(),
       });
 
+      setNewBoatImageFile(null);
       setNewBoat({
         name: "",
         location: "Port Credit",
@@ -844,6 +855,34 @@ useEffect(() => {
               ← Back to Browse
             </button>
 
+            {currentUser && currentUserType === "owner" && selectedBoat.ownerId === currentUser.uid && (
+              <div className="mb-4 flex gap-2">
+                <button
+                  onClick={() => {
+                    setEditingBoat(selectedBoat);
+                    setEditImageFile(null);
+                    setView("edit-boat");
+                  }}
+                  className="px-4 py-2 bg-white border border-sky-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Edit Listing
+                </button>
+
+                <button
+                  onClick={async () => {
+                    if (!confirm("Delete this boat listing?")) return;
+                    await deleteDoc(doc(db, "boats", selectedBoat.id));
+                    alert("Deleted.");
+                    setSelectedBoat(null);
+                    setView("browse");
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700"
+                >
+                  Delete
+                </button>
+              </div>
+            )}
+
             <div className="bg-white rounded-2xl overflow-hidden shadow-xl border border-sky-100">
               <img
                 src={
@@ -976,7 +1015,16 @@ useEffect(() => {
         {/* Messages */}
         {view === "messages" && currentUser && (
           <div>
-            <h2 className="text-3xl font-bold text-slate-900 mb-6">Messages</h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-3xl font-bold text-slate-900">Messages</h2>
+
+              <button
+                onClick={() => setView("browse")}
+                className="px-4 py-2 bg-white border border-sky-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                ← Back to Browse
+              </button>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="md:col-span-1 bg-white rounded-2xl shadow-lg border border-sky-100 overflow-hidden">
@@ -1029,26 +1077,46 @@ useEffect(() => {
                           <p className="text-slate-500">No messages yet. Start the conversation!</p>
                         </div>
                       ) : (
-                        messages.map((msg) => (
-                          <div
-                            key={msg.id}
-                            className={`flex ${msg.senderId === currentUser.uid ? "justify-end" : "justify-start"}`}
-                          >
-                            <div
-                              className={`max-w-[80%] md:max-w-[60%] ${
-                                msg.senderId === currentUser.uid
-                                  ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white"
-                                  : "bg-slate-100 text-slate-900"
-                              } rounded-2xl px-4 py-3`}
-                            >
-                              <div className="font-medium text-sm mb-1 opacity-90">{msg.senderName}</div>
-                              <div>{msg.text}</div>
-                              <div className={`text-xs mt-1 ${msg.senderId === currentUser.uid ? "text-white/70" : "text-slate-500"}`}>
-                                {msg.createdAt ? msg.createdAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : ""}
+                        messages.map((msg) => {
+                          const isMine = msg.senderId === currentUser.uid;
+
+                          return (
+                            <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+                              <div className={`max-w-[80%] md:max-w-[60%] flex items-end gap-2 ${isMine ? "flex-row-reverse" : ""}`}>
+                                
+                                {/* Optional avatar for other person */}
+                                {!isMine && (
+                                  <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 text-xs font-bold">
+                                    {msg.senderName?.[0]?.toUpperCase() || "U"}
+                                  </div>
+                                )}
+
+                                <div
+                                  className={`rounded-2xl px-4 py-3 shadow-sm ${
+                                    isMine
+                                      ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white"
+                                      : "bg-white border border-slate-200 text-slate-900"
+                                  }`}
+                                >
+                                  {/* Only show name for the OTHER user */}
+                                  {!isMine && (
+                                    <div className="text-xs font-semibold text-slate-500 mb-1">
+                                      {msg.senderName || "User"}
+                                    </div>
+                                  )}
+
+                                  <div className="whitespace-pre-wrap break-words">{msg.text}</div>
+
+                                  <div className={`text-[11px] mt-1 ${isMine ? "text-white/70" : "text-slate-400"}`}>
+                                    {msg.createdAt
+                                      ? msg.createdAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+                                      : ""}
+                                  </div>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))
+                          );
+                        })
                       )}
                     </div>
 
@@ -1171,6 +1239,16 @@ useEffect(() => {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Boat Photo</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="w-full"
+                  onChange={(e) => setNewBoatImageFile(e.target.files?.[0] || null)}
+                />
+              </div>
+
               <div className="flex gap-3">
                 <button
                   onClick={addNewBoat}
@@ -1186,6 +1264,99 @@ useEffect(() => {
                   Cancel
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Boat View */}
+        {view === "edit-boat" && currentUser && currentUserType === "owner" && editingBoat && (
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-3xl font-bold text-slate-900">Edit Listing</h2>
+              <button
+                onClick={() => setView("boat-detail")}
+                className="px-4 py-2 bg-white border border-sky-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                ← Back
+              </button>
+            </div>
+
+            <div className="bg-white rounded-2xl p-6 md:p-8 shadow-xl border border-sky-100 space-y-4">
+              <input
+                className="w-full px-4 py-3 border border-sky-200 rounded-lg"
+                value={editingBoat.name || ""}
+                onChange={(e) => setEditingBoat({ ...editingBoat, name: e.target.value })}
+                placeholder="Boat Name"
+              />
+
+              <select
+                className="w-full px-4 py-3 border border-sky-200 rounded-lg bg-white"
+                value={editingBoat.location || "Port Credit"}
+                onChange={(e) => setEditingBoat({ ...editingBoat, location: e.target.value })}
+              >
+                <option value="Port Credit">Port Credit</option>
+                <option value="Toronto Harbour">Toronto Harbour</option>
+                <option value="Hamilton Harbour">Hamilton Harbour</option>
+              </select>
+
+              <textarea
+                className="w-full px-4 py-3 border border-sky-200 rounded-lg"
+                rows={4}
+                value={editingBoat.description || ""}
+                onChange={(e) => setEditingBoat({ ...editingBoat, description: e.target.value })}
+                placeholder="Description"
+              />
+
+              <input
+                className="w-full px-4 py-3 border border-sky-200 rounded-lg"
+                value={(editingBoat.amenities || []).join(", ")}
+                onChange={(e) =>
+                  setEditingBoat({
+                    ...editingBoat,
+                    amenities: e.target.value.split(",").map((x) => x.trim()).filter(Boolean),
+                  })
+                }
+                placeholder="Amenities (comma-separated)"
+              />
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Replace Photo (optional)</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="w-full"
+                  onChange={(e) => setEditImageFile(e.target.files?.[0] || null)}
+                />
+              </div>
+
+              <button
+                onClick={async () => {
+                  try {
+                    if (editingBoat.ownerId !== currentUser.uid) return alert("Not your boat.");
+
+                    const newUrl = await uploadBoatImage(editImageFile, currentUser.uid);
+
+                    await updateDoc(doc(db, "boats", editingBoat.id), {
+                      name: editingBoat.name,
+                      location: editingBoat.location,
+                      description: editingBoat.description,
+                      amenities: editingBoat.amenities || [],
+                      ...(newUrl ? { imageUrl: newUrl } : {}),
+                      updatedAt: serverTimestamp(),
+                    });
+
+                    alert("Updated!");
+                    setSelectedBoat({ ...editingBoat, ...(newUrl ? { imageUrl: newUrl } : {}) });
+                    setView("boat-detail");
+                  } catch (e) {
+                    console.error(e);
+                    alert("Update failed");
+                  }
+                }}
+                className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-4 rounded-xl font-bold"
+              >
+                Save Changes
+              </button>
             </div>
           </div>
         )}
