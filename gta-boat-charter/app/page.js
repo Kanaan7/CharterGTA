@@ -366,32 +366,27 @@ export default function BoatCharterPlatform() {
   }, [currentUser]);
 
   /* -------- Messages (subcollection) -------- */
-  useEffect(() => {
-    if (!selectedConversation) return;
+useEffect(() => {
+  if (!selectedConversation) return;
 
-    const q = query(
-      collection(db, "conversations", selectedConversation.id, "messages"),
-      orderBy("timestamp", "asc")
+  const q = query(
+    collection(db, "conversations", selectedConversation.id, "messages"),
+    orderBy("createdAt", "asc")
+  );
+
+  const unsubscribe = onSnapshot(q, (snapshot) => {
+    setMessages(
+      snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate?.() || null,
+      }))
     );
+  });
 
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        const data = snap.docs.map((d) => {
-          const raw = d.data();
-          return {
-            id: d.id,
-            ...raw,
-            timestamp: raw.timestamp?.toDate ? raw.timestamp.toDate() : null,
-          };
-        });
-        setMessages(data);
-      },
-      (err) => console.error("messages snapshot error:", err)
-    );
+  return () => unsubscribe();
+}, [selectedConversation?.id]);
 
-    return () => unsub();
-  }, [selectedConversation]);
 
   /* ---------------- Auth Handlers ---------------- */
   const upsertUserProfile = async (user, accountType) => {
@@ -510,28 +505,36 @@ export default function BoatCharterPlatform() {
     }
   };
 
-  const sendMessage = async () => {
-    if (!messageInput.trim() || !currentUser || !selectedConversation) return;
+ const sendMessage = async () => {
+  if (!messageInput.trim() || !currentUser || !selectedConversation) return;
 
-    try {
-      await addDoc(collection(db, "conversations", selectedConversation.id, "messages"), {
+  const text = messageInput.trim();
+  setMessageInput("");
+
+  try {
+    await addDoc(
+      collection(db, "conversations", selectedConversation.id, "messages"),
+      {
         senderId: currentUser.uid,
         senderName: currentUser.displayName || "User",
-        text: messageInput.trim(),
-        timestamp: serverTimestamp(),
-      });
+        text,
+        createdAt: serverTimestamp(),
+      }
+    );
 
-      await updateDoc(doc(db, "conversations", selectedConversation.id), {
-        lastMessage: messageInput.trim(),
-        lastMessageTime: serverTimestamp(),
-      });
-
-      setMessageInput("");
-    } catch (e) {
-      console.error("sendMessage error:", e);
-      alert(e.message); // IMPORTANT so you SEE permission-denied, etc.
-    }
-  };
+    await updateDoc(
+      doc(db, "conversations", selectedConversation.id),
+      {
+        lastMessage: text,
+        lastMessageAt: serverTimestamp(),
+      }
+    );
+  } catch (err) {
+    console.error("Send message failed:", err);
+    alert("Message failed to send");
+    setMessageInput(text);
+  }
+};
 
   /* ---------------- Owner: Add Boat ---------------- */
   const addNewBoat = async () => {
@@ -569,11 +572,14 @@ export default function BoatCharterPlatform() {
         ownerEmail: currentUser.email || "",
         rating: 0,
         reviews: 0,
-        availability: [
-          { date: plus(1), slots: ["09:00-13:00", "14:00-18:00"] },
-          { date: plus(2), slots: ["09:00-13:00", "14:00-18:00"] },
-          { date: plus(3), slots: ["09:00-13:00", "14:00-18:00"] },
-        ],
+        availabilityRules: {
+        minHours: 4,
+         maxEndHour: 22, // 10 PM
+         slotLength: 4, // hours
+         startHour: 9,
+          endHour: 22
+      },  
+
         createdAt: serverTimestamp(),
       });
 
