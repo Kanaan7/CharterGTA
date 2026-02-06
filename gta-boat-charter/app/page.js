@@ -43,18 +43,52 @@ import {
 
 const LOCATIONS = ["All Locations", "Port Credit", "Toronto Harbour", "Hamilton Harbour"];
 
-/* --------------------------- DatePicker --------------------------- */
-function DatePicker({ selectedDate, onSelectDate, availableDates }) {
-  const [currentMonth, setCurrentMonth] = useState(() => {
-    const first = availableDates?.[0]?.date;
-    return first ? new Date(first + "T00:00:00") : new Date();
-  });
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
 
-  // if boat changes, re-center calendar
-  useEffect(() => {
-    const first = availableDates?.[0]?.date;
-    if (first) setCurrentMonth(new Date(first + "T00:00:00"));
-  }, [availableDates]);
+// Use local date (prevents timezone shifting)
+function toLocalDateStr(date) {
+  const d = new Date(date);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function minutes(h, m) {
+  return h * 60 + m;
+}
+
+function minutesToHHMM(min) {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${pad2(h)}:${pad2(m)}`;
+}
+
+// Builds slots like "09:00-13:00"
+function buildSlotsFromRules(rules) {
+  const startHour = Number(rules?.startHour ?? 9);
+  const endHour = Number(rules?.endHour ?? 22);
+  const slotLength = Number(rules?.slotLength ?? 4); // hours
+  const minHours = Number(rules?.minHours ?? slotLength);
+
+  // simplest: slotLength is what we show users
+  const duration = slotLength * 60;
+
+  const startMin = minutes(startHour, 0);
+  const endMin = minutes(endHour, 0);
+
+  const slots = [];
+  for (let s = startMin; s + duration <= endMin; s += duration) {
+    const e = s + duration;
+    slots.push(`${minutesToHHMM(s)}-${minutesToHHMM(e)}`);
+  }
+
+  // if you want minHours enforced later, we'll use it at booking time
+  return slots;
+}
+
+/* --------------------------- DatePicker --------------------------- */
+function DatePicker({ selectedDate, onSelectDate, rules }) {
+  const [currentMonth, setCurrentMonth] = useState(() => new Date());
 
   const getDaysInMonth = (date) => {
     const year = date.getFullYear();
@@ -71,15 +105,23 @@ function DatePicker({ selectedDate, onSelectDate, availableDates }) {
     return days;
   };
 
-  const isDateAvailable = (date) => {
-    if (!date) return false;
-    const dateStr = date.toISOString().split("T")[0];
-    return (availableDates || []).some((a) => a.date === dateStr && (a.slots || []).length > 0);
-  };
-
   const isDateSelected = (date) => {
     if (!date || !selectedDate) return false;
-    return date.toISOString().split("T")[0] === selectedDate;
+    return toLocalDateStr(date) === selectedDate;
+  };
+
+  const isDateAvailable = (date) => {
+    if (!date) return false;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // allow any future date
+    if (date < today) return false;
+
+    // date is "available" if rules produce at least 1 slot
+    const slots = buildSlotsFromRules(rules || {});
+    return slots.length > 0;
   };
 
   const days = getDaysInMonth(currentMonth);
@@ -122,7 +164,7 @@ function DatePicker({ selectedDate, onSelectDate, availableDates }) {
           return (
             <button
               key={idx}
-              onClick={() => date && available && !isPast && onSelectDate(date.toISOString().split("T")[0])}
+              onClick={() => date && available && !isPast && onSelectDate(toLocalDateStr(date))}
               disabled={!date || !available || isPast}
               className={`
                 aspect-square p-2 rounded-lg text-sm font-medium transition-all
@@ -283,6 +325,12 @@ export default function BoatCharterPlatform() {
     description: "",
     amenities: "",
     imageUrl: "",
+
+    // ✅ availability rules
+    startHour: 9,
+    endHour: 22,
+    slotLength: 4,
+    minHours: 4,
   });
 
   /* -------- Auth state -------- */
@@ -573,12 +621,11 @@ useEffect(() => {
         rating: 0,
         reviews: 0,
         availabilityRules: {
-        minHours: 4,
-         maxEndHour: 22, // 10 PM
-         slotLength: 4, // hours
-         startHour: 9,
-          endHour: 22
-      },  
+          minHours: Number(newBoat.minHours),
+          slotLength: Number(newBoat.slotLength),
+          startHour: Number(newBoat.startHour),
+          endHour: Number(newBoat.endHour),
+        },
 
         createdAt: serverTimestamp(),
       });
@@ -592,6 +639,12 @@ useEffect(() => {
         description: "",
         amenities: "",
         imageUrl: "",
+
+        // ✅ availability rules
+        startHour: 9,
+        endHour: 22,
+        slotLength: 4,
+        minHours: 4,
       });
 
       alert("Boat listed!");
@@ -862,7 +915,7 @@ useEffect(() => {
                           setSelectedDate(d);
                           setSelectedSlot("");
                         }}
-                        availableDates={selectedBoat.availability || []}
+                        rules={selectedBoat.availabilityRules || {}}
                       />
                     </div>
 
@@ -871,24 +924,22 @@ useEffect(() => {
 
                       {selectedDate ? (
                         <div className="space-y-2">
-                          {(selectedBoat.availability || [])
-                            .find((a) => a.date === selectedDate)
-                            ?.slots?.map((slot) => (
-                              <button
-                                key={slot}
-                                onClick={() => setSelectedSlot(slot)}
-                                className={`w-full px-4 py-3 rounded-lg font-medium transition-all ${
-                                  selectedSlot === slot
-                                    ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md"
-                                    : "bg-white border-2 border-sky-200 text-slate-700 hover:border-blue-400"
-                                }`}
-                              >
-                                <div className="flex items-center justify-center gap-2">
-                                  <Clock className="w-4 h-4" />
-                                  {slot}
-                                </div>
-                              </button>
-                            ))}
+                          {buildSlotsFromRules(selectedBoat.availabilityRules || {}).map((slot) => (
+                            <button
+                              key={slot}
+                              onClick={() => setSelectedSlot(slot)}
+                              className={`w-full px-4 py-3 rounded-lg font-medium transition-all ${
+                                selectedSlot === slot
+                                  ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md"
+                                  : "bg-white border-2 border-sky-200 text-slate-700 hover:border-blue-400"
+                              }`}
+                            >
+                              <div className="flex items-center justify-center gap-2">
+                                <Clock className="w-4 h-4" />
+                                {slot}
+                              </div>
+                            </button>
+                          ))}
                         </div>
                       ) : (
                         <div className="bg-slate-50 border border-slate-200 rounded-lg p-8 text-center">
@@ -993,7 +1044,7 @@ useEffect(() => {
                               <div className="font-medium text-sm mb-1 opacity-90">{msg.senderName}</div>
                               <div>{msg.text}</div>
                               <div className={`text-xs mt-1 ${msg.senderId === currentUser.uid ? "text-white/70" : "text-slate-500"}`}>
-                                {msg.timestamp ? msg.timestamp.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : ""}
+                                {msg.createdAt ? msg.createdAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : ""}
                               </div>
                             </div>
                           </div>
@@ -1071,6 +1122,54 @@ useEffect(() => {
                 value={newBoat.amenities}
                 onChange={(e) => setNewBoat({ ...newBoat, amenities: e.target.value })}
               />
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium text-slate-700">Start Hour</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="23"
+                    className="w-full px-4 py-3 border border-sky-200 rounded-lg"
+                    value={newBoat.startHour}
+                    onChange={(e) => setNewBoat({ ...newBoat, startHour: Number(e.target.value) })}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-slate-700">End Hour</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="23"
+                    className="w-full px-4 py-3 border border-sky-200 rounded-lg"
+                    value={newBoat.endHour}
+                    onChange={(e) => setNewBoat({ ...newBoat, endHour: Number(e.target.value) })}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-slate-700">Slot Length (hrs)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="w-full px-4 py-3 border border-sky-200 rounded-lg"
+                    value={newBoat.slotLength}
+                    onChange={(e) => setNewBoat({ ...newBoat, slotLength: Number(e.target.value) })}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-slate-700">Min Hours</label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="w-full px-4 py-3 border border-sky-200 rounded-lg"
+                    value={newBoat.minHours}
+                    onChange={(e) => setNewBoat({ ...newBoat, minHours: Number(e.target.value) })}
+                  />
+                </div>
+              </div>
 
               <div className="flex gap-3">
                 <button
