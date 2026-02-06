@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, MapPin, DollarSign, Clock, MessageCircle, Anchor, Star, Users, Send, X, Plus, LogOut, LogIn, ChevronLeft, ChevronRight } from 'lucide-react';
 import { db, auth } from '../lib/firebase';
-import { collection, addDoc, query, where, onSnapshot, orderBy, getDocs, doc, updateDoc, setDoc, getDoc } from 'firebase/firestore';
+import {collection, addDoc, query,  where, onSnapshot, orderBy, getDocs, doc,updateDoc, setDoc,getDoc, serverTimestamp  } from 'firebase/firestore';
 import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from 'firebase/auth';
 
 const LOCATIONS = ["All Locations", "Port Credit", "Toronto Harbour", "Hamilton Harbour"];
@@ -369,26 +369,26 @@ export default function BoatCharterPlatform() {
   }, [currentUser]);
 
   // Fetch messages
-  useEffect(() => {
-    if (!selectedConversation) return;
+ useEffect(() => {
+  if (!selectedConversation) return;
 
-    const q = query(
-      collection(db, 'messages'),
-      where('conversationId', '==', selectedConversation.id),
-      orderBy('timestamp', 'asc')
-    );
+  const q = query(
+    collection(db, 'conversations', selectedConversation.id, 'messages'),
+    orderBy('timestamp', 'asc')
+  );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const messagesData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        timestamp: doc.data().timestamp?.toDate()
-      }));
-      setMessages(messagesData);
-    });
+  const unsubscribe = onSnapshot(q, (snapshot) => {
+    const messagesData = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      timestamp: doc.data().timestamp?.toDate()
+    }));
 
-    return () => unsubscribe();
-  }, [selectedConversation]);
+    setMessages(messagesData);
+  });
+
+  return () => unsubscribe();
+}, [selectedConversation]);
 
   const handleGoogleSignIn = async (accountType) => {
     try {
@@ -549,28 +549,33 @@ export default function BoatCharterPlatform() {
     }
   };
 
-  const sendMessage = async () => {
-    if (!messageInput.trim() || !currentUser || !selectedConversation) return;
+const sendMessage = async () => {
+  if (!messageInput.trim() || !currentUser || !selectedConversation) return;
 
-    try {
-      await addDoc(collection(db, 'messages'), {
-        conversationId: selectedConversation.id,
+  try {
+    // ✅ store inside conversation subcollection
+    await addDoc(
+      collection(db, 'conversations', selectedConversation.id, 'messages'),
+      {
         senderId: currentUser.uid,
         senderName: currentUser.displayName || 'User',
         text: messageInput,
-        timestamp: new Date()
-      });
+        timestamp: serverTimestamp()
+      }
+    );
 
-      await updateDoc(doc(db, 'conversations', selectedConversation.id), {
-        lastMessage: messageInput,
-        lastMessageTime: new Date()
-      });
+    // update last message preview
+    await updateDoc(doc(db, 'conversations', selectedConversation.id), {
+      lastMessage: messageInput,
+      lastMessageTime: serverTimestamp()
+    });
 
-      setMessageInput('');
-    } catch (error) {
-      console.error('Error sending message:', error);
-    }
-  };
+    setMessageInput('');
+  } catch (error) {
+    console.error('Error sending message:', error);
+  }
+};
+
 
   const addNewBoat = async () => {
     if (!currentUser) {
