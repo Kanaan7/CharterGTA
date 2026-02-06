@@ -1,59 +1,98 @@
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const Stripe = require("stripe");
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: "2024-06-20",
+});
 
 exports.handler = async (event) => {
-  // Only allow POST
-  if (event.httpMethod !== 'POST') {
+  // CORS (optional but helps if you call from browser)
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+
+  if (event.httpMethod === "OPTIONS") {
+    return { statusCode: 204, headers: corsHeaders, body: "" };
+  }
+
+  if (event.httpMethod !== "POST") {
     return {
       statusCode: 405,
-      body: JSON.stringify({ error: 'Method not allowed' }),
+      headers: corsHeaders,
+      body: JSON.stringify({ error: "Method not allowed" }),
     };
   }
 
   try {
-    const { boatName, boatId, date, slot, price, userId, ownerEmail } = JSON.parse(event.body);
+    const { boatName, boatId, date, slot, price, userId, ownerEmail } = JSON.parse(event.body || "{}");
+
+    if (!boatName || !boatId || !date || !slot || !price || !userId) {
+      return {
+        statusCode: 400,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: "Missing required fields" }),
+      };
+    }
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (!appUrl) {
+      return {
+        statusCode: 500,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: "Missing NEXT_PUBLIC_APP_URL env var" }),
+      };
+    }
+
+    const unitAmount = Math.round(Number(price) * 100);
+    if (!Number.isFinite(unitAmount) || unitAmount <= 0) {
+      return {
+        statusCode: 400,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: "Invalid price" }),
+      };
+    }
 
     // Create Stripe checkout session
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
+      mode: "payment",
+      payment_method_types: ["card"],
       line_items: [
         {
           price_data: {
-            currency: 'cad',
+            currency: "cad",
             product_data: {
               name: `${boatName} Charter`,
               description: `Booking for ${date} at ${slot}`,
             },
-            unit_amount: price * 100, // Stripe uses cents
+            unit_amount: unitAmount,
           },
           quantity: 1,
         },
       ],
-      mode: 'payment',
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/booking-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/booking-cancelled`,
+      success_url: `${appUrl}/booking-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${appUrl}/booking-cancelled`,
       metadata: {
         boatId,
         boatName,
         date,
         slot,
         userId,
-        ownerEmail,
+        ownerEmail: ownerEmail || "",
       },
     });
 
     return {
       statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
       body: JSON.stringify({ sessionId: session.id, url: session.url }),
     };
   } catch (error) {
-    console.error('Error creating checkout session:', error);
+    console.error("Error creating checkout session:", error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: error.message }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ error: error.message || "Server error" }),
     };
   }
 };
