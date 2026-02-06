@@ -1,17 +1,187 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Calendar, MapPin, DollarSign, Clock, MessageCircle, Anchor, Star, Users, Send, X, Plus, LogOut } from 'lucide-react';
+import { Calendar, MapPin, DollarSign, Clock, MessageCircle, Anchor, Star, Users, Send, X, Plus, LogOut, LogIn, ChevronLeft, ChevronRight } from 'lucide-react';
 import { db, auth } from '../lib/firebase';
-import { collection, addDoc, query, where, onSnapshot, orderBy, getDocs, doc, updateDoc, setDoc } from 'firebase/firestore';
-import { signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
-import { getStripe } from '../lib/stripe';
+import { collection, addDoc, query, where, onSnapshot, orderBy, getDocs, doc, updateDoc, setDoc, getDoc } from 'firebase/firestore';
+import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from 'firebase/auth';
 
 const LOCATIONS = ["All Locations", "Port Credit", "Toronto Harbour", "Hamilton Harbour"];
 
+// Modern Date Picker Component
+function DatePicker({ selectedDate, onSelectDate, availableDates }) {
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  
+  const getDaysInMonth = (date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+    
+    const days = [];
+    
+    // Add empty cells for days before month starts
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      days.push(null);
+    }
+    
+    // Add actual days
+    for (let day = 1; day <= daysInMonth; day++) {
+      days.push(new Date(year, month, day));
+    }
+    
+    return days;
+  };
+  
+  const isDateAvailable = (date) => {
+    if (!date) return false;
+    const dateStr = date.toISOString().split('T')[0];
+    return availableDates.some(avail => avail.date === dateStr && avail.slots.length > 0);
+  };
+  
+  const isDateSelected = (date) => {
+    if (!date || !selectedDate) return false;
+    return date.toISOString().split('T')[0] === selectedDate;
+  };
+  
+  const days = getDaysInMonth(currentMonth);
+  const monthName = currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  
+  return (
+    <div className="bg-white rounded-xl border border-sky-200 p-4">
+      <div className="flex items-center justify-between mb-4">
+        <button
+          onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
+          className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+        >
+          <ChevronLeft className="w-5 h-5 text-slate-600" />
+        </button>
+        <h3 className="font-semibold text-slate-900">{monthName}</h3>
+        <button
+          onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
+          className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+        >
+          <ChevronRight className="w-5 h-5 text-slate-600" />
+        </button>
+      </div>
+      
+      <div className="grid grid-cols-7 gap-1 mb-2">
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+          <div key={day} className="text-center text-xs font-semibold text-slate-500 py-2">
+            {day}
+          </div>
+        ))}
+      </div>
+      
+      <div className="grid grid-cols-7 gap-1">
+        {days.map((date, idx) => {
+          const available = isDateAvailable(date);
+          const selected = isDateSelected(date);
+          const isPast = date && date < new Date(new Date().setHours(0, 0, 0, 0));
+          
+          return (
+            <button
+              key={idx}
+              onClick={() => date && available && !isPast && onSelectDate(date.toISOString().split('T')[0])}
+              disabled={!date || !available || isPast}
+              className={`
+                aspect-square p-2 rounded-lg text-sm font-medium transition-all
+                ${!date ? 'invisible' : ''}
+                ${selected ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg scale-105' : ''}
+                ${available && !selected && !isPast ? 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200' : ''}
+                ${!available && date && !isPast ? 'text-slate-300 cursor-not-allowed' : ''}
+                ${isPast && date ? 'text-slate-200 cursor-not-allowed line-through' : ''}
+              `}
+            >
+              {date?.getDate()}
+            </button>
+          );
+        })}
+      </div>
+      
+      <div className="flex items-center gap-4 mt-4 pt-4 border-t border-sky-100 text-xs">
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-blue-50 border border-blue-200 rounded"></div>
+          <span className="text-slate-600">Available</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded"></div>
+          <span className="text-slate-600">Selected</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-slate-100 rounded"></div>
+          <span className="text-slate-600">Unavailable</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Auth Modal Component
+function AuthModal({ onClose, onSignIn }) {
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full border border-sky-100">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold text-slate-900">Sign In</h2>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg">
+            <X className="w-5 h-5 text-slate-600" />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <p className="text-slate-600 mb-6">Choose your account type to continue:</p>
+          
+          <button
+            onClick={() => onSignIn('user')}
+            className="w-full bg-white border-2 border-blue-200 hover:border-blue-400 text-slate-700 py-4 px-6 rounded-xl font-semibold flex items-center justify-center gap-3 transition-all hover:shadow-lg"
+          >
+            <div className="w-10 h-10 bg-white rounded-lg shadow flex items-center justify-center">
+              <svg className="w-6 h-6" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+            </div>
+            <div className="text-left">
+              <div className="font-bold text-slate-900">Sign in as Passenger</div>
+              <div className="text-sm text-slate-500">Book and charter boats</div>
+            </div>
+          </button>
+
+          <button
+            onClick={() => onSignIn('owner')}
+            className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-4 px-6 rounded-xl font-semibold flex items-center justify-center gap-3 transition-all hover:shadow-xl"
+          >
+            <div className="w-10 h-10 bg-white rounded-lg shadow flex items-center justify-center">
+              <svg className="w-6 h-6" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+            </div>
+            <div className="text-left">
+              <div className="font-bold">Sign in as Boat Owner</div>
+              <div className="text-sm opacity-90">List and manage your boats</div>
+            </div>
+          </button>
+
+          <p className="text-center text-xs text-slate-500 mt-6">
+            By signing in, you agree to our Terms of Service and Privacy Policy
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function BoatCharterPlatform() {
   const [view, setView] = useState('browse');
-  const [userType, setUserType] = useState(null); // null = not logged in, 'user' or 'owner'
+  const [currentUserType, setCurrentUserType] = useState(null); // Current active mode
   const [boats, setBoats] = useState([]);
   const [selectedBoat, setSelectedBoat] = useState(null);
   const [locationFilter, setLocationFilter] = useState('All Locations');
@@ -23,7 +193,9 @@ export default function BoatCharterPlatform() {
   const [messages, setMessages] = useState([]);
   const [messageInput, setMessageInput] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [newBoat, setNewBoat] = useState({
     name: '',
     location: 'Port Credit',
@@ -37,27 +209,30 @@ export default function BoatCharterPlatform() {
 
   // Check auth state
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setCurrentUser(user);
+      
       if (user) {
-        setCurrentUser(user);
-        
-        // Check if user has a profile to determine their type
-        const userDoc = await getDocs(query(collection(db, 'users'), where('uid', '==', user.uid)));
-        if (!userDoc.empty) {
-          const userData = userDoc.docs[0].data();
-          setUserType(userData.userType);
+        // Get user profile
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists()) {
+          const profile = userDoc.data();
+          setUserProfile(profile);
+          // Set current user type to their last used type or default
+          setCurrentUserType(profile.lastActiveType || profile.accountTypes?.[0] || 'user');
         }
       } else {
-        setCurrentUser(null);
-        setUserType(null);
+        setUserProfile(null);
+        setCurrentUserType(null);
       }
+      
       setLoading(false);
     });
 
     return () => unsubscribe();
   }, []);
 
-  // Fetch boats from Firestore
+  // Fetch boats
   useEffect(() => {
     const q = query(collection(db, 'boats'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -73,7 +248,7 @@ export default function BoatCharterPlatform() {
 
   // Fetch user's bookings
   useEffect(() => {
-    if (!currentUser || userType !== 'user') return;
+    if (!currentUser) return;
 
     const q = query(
       collection(db, 'bookings'),
@@ -90,7 +265,7 @@ export default function BoatCharterPlatform() {
     });
 
     return () => unsubscribe();
-  }, [currentUser, userType]);
+  }, [currentUser]);
 
   // Fetch conversations
   useEffect(() => {
@@ -112,7 +287,7 @@ export default function BoatCharterPlatform() {
     return () => unsubscribe();
   }, [currentUser]);
 
-  // Fetch messages for selected conversation
+  // Fetch messages
   useEffect(() => {
     if (!selectedConversation) return;
 
@@ -140,19 +315,37 @@ export default function BoatCharterPlatform() {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
+      // Get existing profile or create new one
+      const userDocRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userDocRef);
+      
+      let accountTypes = [accountType];
+      
+      if (userDoc.exists()) {
+        const existingTypes = userDoc.data().accountTypes || [];
+        // Add new account type if not already present
+        accountTypes = [...new Set([...existingTypes, accountType])];
+      }
+
       // Create or update user profile
-      await setDoc(doc(db, 'users', user.uid), {
+      await setDoc(userDocRef, {
         uid: user.uid,
         email: user.email,
         displayName: user.displayName,
         photoURL: user.photoURL,
-        userType: accountType,
-        createdAt: new Date()
+        accountTypes: accountTypes, // Array of account types user has
+        lastActiveType: accountType, // Track which type they last used
+        createdAt: userDoc.exists() ? userDoc.data().createdAt : new Date()
       }, { merge: true });
 
-      setUserType(accountType);
+      setCurrentUserType(accountType);
+      setShowAuthModal(false);
     } catch (error) {
       console.error('Sign in error:', error);
+      if (error.code === 'auth/popup-closed-by-user') {
+        // User closed popup, don't show error
+        return;
+      }
       alert('Error signing in. Please try again.');
     }
   };
@@ -160,11 +353,23 @@ export default function BoatCharterPlatform() {
   const handleSignOut = async () => {
     try {
       await signOut(auth);
-      setUserType(null);
+      setCurrentUserType(null);
       setView('browse');
     } catch (error) {
       console.error('Sign out error:', error);
     }
+  };
+
+  const switchAccountType = async (newType) => {
+    if (!currentUser || !userProfile) return;
+    
+    // Update last active type
+    await updateDoc(doc(db, 'users', currentUser.uid), {
+      lastActiveType: newType
+    });
+    
+    setCurrentUserType(newType);
+    setView('browse');
   };
 
   const filteredBoats = locationFilter === 'All Locations' 
@@ -172,6 +377,11 @@ export default function BoatCharterPlatform() {
     : boats.filter(boat => boat.location === locationFilter);
 
   const handleBooking = async () => {
+    if (!currentUser) {
+      setShowAuthModal(true);
+      return;
+    }
+
     if (!selectedDate || !selectedSlot) {
       alert('Please select a date and time slot');
       return;
@@ -194,8 +404,13 @@ export default function BoatCharterPlatform() {
         }),
       });
 
-      const { url } = await response.json();
-      window.location.href = url;
+      const data = await response.json();
+      
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error('No checkout URL returned');
+      }
     } catch (error) {
       console.error('Booking error:', error);
       alert('Error processing booking. Please try again.');
@@ -204,11 +419,10 @@ export default function BoatCharterPlatform() {
 
   const startConversation = async (boat) => {
     if (!currentUser) {
-      alert('Please sign in to message the owner');
+      setShowAuthModal(true);
       return;
     }
 
-    // Check if conversation already exists
     const existingConv = conversations.find(conv => 
       conv.boatId === boat.id && 
       conv.participantIds.includes(currentUser.uid) &&
@@ -221,7 +435,6 @@ export default function BoatCharterPlatform() {
       return;
     }
 
-    // Create new conversation
     try {
       const convRef = await addDoc(collection(db, 'conversations'), {
         boatId: boat.id,
@@ -267,7 +480,6 @@ export default function BoatCharterPlatform() {
         timestamp: new Date()
       });
 
-      // Update conversation's last message
       await updateDoc(doc(db, 'conversations', selectedConversation.id), {
         lastMessage: messageInput,
         lastMessageTime: new Date()
@@ -280,7 +492,12 @@ export default function BoatCharterPlatform() {
   };
 
   const addNewBoat = async () => {
-    if (!newBoat.name || !newBoat.description || !currentUser) {
+    if (!currentUser) {
+      setShowAuthModal(true);
+      return;
+    }
+
+    if (!newBoat.name || !newBoat.description) {
       alert('Please fill in all required fields');
       return;
     }
@@ -298,7 +515,9 @@ export default function BoatCharterPlatform() {
         availability: [
           { date: "2026-07-15", slots: ["09:00-13:00", "14:00-18:00"] },
           { date: "2026-07-16", slots: ["09:00-13:00", "14:00-18:00"] },
-          { date: "2026-07-17", slots: ["09:00-13:00", "14:00-18:00"] }
+          { date: "2026-07-17", slots: ["09:00-13:00", "14:00-18:00"] },
+          { date: "2026-07-20", slots: ["09:00-13:00", "14:00-18:00"] },
+          { date: "2026-07-21", slots: ["09:00-13:00", "14:00-18:00"] }
         ],
         createdAt: new Date()
       });
@@ -321,75 +540,6 @@ export default function BoatCharterPlatform() {
     }
   };
 
-  // Login Screen
-  if (!currentUser || !userType) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-sky-50 via-blue-50 to-cyan-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 border border-sky-100">
-            <div className="text-center mb-8">
-              <div className="bg-gradient-to-br from-blue-600 to-cyan-600 p-4 rounded-2xl shadow-lg inline-block mb-4">
-                <Anchor className="w-12 h-12 text-white" />
-              </div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-700 to-cyan-600 bg-clip-text text-transparent mb-2">
-                GTA Charter
-              </h1>
-              <p className="text-slate-600">Lake Ontario Adventures</p>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <h2 className="text-xl font-bold text-slate-900 mb-4 text-center">
-                  Welcome! Choose your account type:
-                </h2>
-              </div>
-
-              <button
-                onClick={() => handleGoogleSignIn('user')}
-                className="w-full bg-white border-2 border-blue-200 hover:border-blue-400 text-slate-700 py-4 px-6 rounded-xl font-semibold flex items-center justify-center gap-3 transition-all hover:shadow-lg group"
-              >
-                <div className="w-10 h-10 bg-white rounded-lg shadow flex items-center justify-center">
-                  <svg className="w-6 h-6" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                  </svg>
-                </div>
-                <div className="text-left">
-                  <div className="font-bold text-slate-900">Sign in as Passenger</div>
-                  <div className="text-sm text-slate-500">Book and charter boats</div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => handleGoogleSignIn('owner')}
-                className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-4 px-6 rounded-xl font-semibold flex items-center justify-center gap-3 transition-all hover:shadow-xl group"
-              >
-                <div className="w-10 h-10 bg-white rounded-lg shadow flex items-center justify-center">
-                  <svg className="w-6 h-6" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                  </svg>
-                </div>
-                <div className="text-left">
-                  <div className="font-bold">Sign in as Boat Owner</div>
-                  <div className="text-sm opacity-90">List and manage your boats</div>
-                </div>
-              </button>
-
-              <p className="text-center text-sm text-slate-500 mt-6">
-                By signing in, you agree to our Terms of Service and Privacy Policy
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-sky-50 via-blue-50 to-cyan-50 flex items-center justify-center">
@@ -403,6 +553,14 @@ export default function BoatCharterPlatform() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-50 via-blue-50 to-cyan-50">
+      {/* Auth Modal */}
+      {showAuthModal && (
+        <AuthModal 
+          onClose={() => setShowAuthModal(false)}
+          onSignIn={handleGoogleSignIn}
+        />
+      )}
+
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-md border-b border-sky-200 sticky top-0 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-4">
@@ -420,24 +578,51 @@ export default function BoatCharterPlatform() {
             </div>
             
             <div className="flex items-center gap-3">
-              <div className="hidden md:flex items-center gap-2 bg-slate-100 px-3 py-2 rounded-lg">
-                <img 
-                  src={currentUser.photoURL || 'https://via.placeholder.com/40'} 
-                  alt={currentUser.displayName}
-                  className="w-8 h-8 rounded-full"
-                />
-                <div className="text-left">
-                  <div className="text-sm font-semibold text-slate-900">{currentUser.displayName}</div>
-                  <div className="text-xs text-slate-500 capitalize">{userType}</div>
-                </div>
-              </div>
-              <button
-                onClick={handleSignOut}
-                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
-              >
-                <LogOut className="w-4 h-4" />
-                <span className="hidden md:inline">Sign Out</span>
-              </button>
+              {currentUser ? (
+                <>
+                  {/* Account Type Switcher - only show if user has multiple account types */}
+                  {userProfile?.accountTypes?.length > 1 && (
+                    <select
+                      value={currentUserType}
+                      onChange={(e) => switchAccountType(e.target.value)}
+                      className="px-3 py-2 bg-white border border-sky-200 rounded-lg text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {userProfile.accountTypes.map(type => (
+                        <option key={type} value={type}>
+                          {type === 'user' ? '👤 Passenger' : '⚓ Owner'}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  
+                  <div className="hidden md:flex items-center gap-2 bg-slate-100 px-3 py-2 rounded-lg">
+                    <img 
+                      src={currentUser.photoURL || 'https://via.placeholder.com/40'} 
+                      alt={currentUser.displayName}
+                      className="w-8 h-8 rounded-full"
+                    />
+                    <div className="text-left">
+                      <div className="text-sm font-semibold text-slate-900">{currentUser.displayName}</div>
+                      <div className="text-xs text-slate-500 capitalize">{currentUserType}</div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleSignOut}
+                    className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span className="hidden md:inline">Sign Out</span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setShowAuthModal(true)}
+                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg text-sm font-medium shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Sign In</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -453,7 +638,7 @@ export default function BoatCharterPlatform() {
             <Anchor className="w-5 h-5" />
             <span className="text-xs font-medium">Browse</span>
           </button>
-          {userType === 'user' ? (
+          {currentUser && currentUserType === 'user' && (
             <>
               <button
                 onClick={() => setView('my-bookings')}
@@ -470,7 +655,8 @@ export default function BoatCharterPlatform() {
                 <span className="text-xs font-medium">Messages</span>
               </button>
             </>
-          ) : (
+          )}
+          {currentUser && currentUserType === 'owner' && (
             <>
               <button
                 onClick={() => setView('owner-dashboard')}
@@ -512,7 +698,7 @@ export default function BoatCharterPlatform() {
             >
               Browse Boats
             </button>
-            {userType === 'user' ? (
+            {currentUser && currentUserType === 'user' && (
               <>
                 <button
                   onClick={() => setView('my-bookings')}
@@ -535,7 +721,8 @@ export default function BoatCharterPlatform() {
                   Messages
                 </button>
               </>
-            ) : (
+            )}
+            {currentUser && currentUserType === 'owner' && (
               <>
                 <button
                   onClick={() => setView('owner-dashboard')}
@@ -605,7 +792,15 @@ export default function BoatCharterPlatform() {
               <div className="bg-white rounded-2xl p-12 text-center shadow-lg border border-sky-100">
                 <Anchor className="w-16 h-16 text-slate-300 mx-auto mb-4" />
                 <h3 className="text-xl font-bold text-slate-700 mb-2">No boats available yet</h3>
-                <p className="text-slate-500">Check back soon for new listings!</p>
+                <p className="text-slate-500 mb-6">Check back soon for new listings!</p>
+                {currentUser && currentUserType === 'owner' && (
+                  <button
+                    onClick={() => setView('list-boat')}
+                    className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white px-6 py-3 rounded-lg font-medium hover:shadow-lg transition-all"
+                  >
+                    List Your First Boat
+                  </button>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -724,55 +919,57 @@ export default function BoatCharterPlatform() {
                   </div>
                 </div>
 
-                {userType === 'user' && (
+                {(!currentUser || currentUserType === 'user') && (
                   <div className="border-t border-sky-100 pt-6">
                     <h3 className="text-xl font-bold text-slate-900 mb-4">Book Your Charter</h3>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-3">
                           Select Date
                         </label>
-                        <select
-                          value={selectedDate}
-                          onChange={(e) => {
-                            setSelectedDate(e.target.value);
+                        <DatePicker 
+                          selectedDate={selectedDate}
+                          onSelectDate={(date) => {
+                            setSelectedDate(date);
                             setSelectedSlot('');
                           }}
-                          className="w-full px-4 py-3 border border-sky-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                        >
-                          <option value="">Choose a date</option>
-                          {selectedBoat.availability?.map(avail => (
-                            <option key={avail.date} value={avail.date}>
-                              {new Date(avail.date).toLocaleDateString('en-US', { 
-                                weekday: 'long', 
-                                year: 'numeric', 
-                                month: 'long', 
-                                day: 'numeric' 
-                              })}
-                            </option>
-                          ))}
-                        </select>
+                          availableDates={selectedBoat.availability || []}
+                        />
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-3">
                           Select Time Slot
                         </label>
-                        <select
-                          value={selectedSlot}
-                          onChange={(e) => setSelectedSlot(e.target.value)}
-                          disabled={!selectedDate}
-                          className="w-full px-4 py-3 border border-sky-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-slate-50 disabled:text-slate-400"
-                        >
-                          <option value="">Choose a time</option>
-                          {selectedDate && selectedBoat.availability
-                            ?.find(avail => avail.date === selectedDate)
-                            ?.slots.map(slot => (
-                              <option key={slot} value={slot}>{slot}</option>
-                            ))
-                          }
-                        </select>
+                        {selectedDate ? (
+                          <div className="space-y-2">
+                            {selectedBoat.availability
+                              ?.find(avail => avail.date === selectedDate)
+                              ?.slots.map(slot => (
+                                <button
+                                  key={slot}
+                                  onClick={() => setSelectedSlot(slot)}
+                                  className={`w-full px-4 py-3 rounded-lg font-medium transition-all ${
+                                    selectedSlot === slot
+                                      ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md'
+                                      : 'bg-white border-2 border-sky-200 text-slate-700 hover:border-blue-400'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-center gap-2">
+                                    <Clock className="w-4 h-4" />
+                                    {slot}
+                                  </div>
+                                </button>
+                              ))
+                            }
+                          </div>
+                        ) : (
+                          <div className="bg-slate-50 border border-slate-200 rounded-lg p-8 text-center">
+                            <Calendar className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                            <p className="text-slate-500">Select a date to view available times</p>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -782,7 +979,7 @@ export default function BoatCharterPlatform() {
                         className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-4 rounded-xl font-bold text-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         disabled={!selectedDate || !selectedSlot}
                       >
-                        Book Now - ${selectedBoat.price}
+                        {currentUser ? `Book Now - $${selectedBoat.price}` : 'Sign In to Book'}
                       </button>
                       <button
                         onClick={() => startConversation(selectedBoat)}
@@ -795,7 +992,7 @@ export default function BoatCharterPlatform() {
                   </div>
                 )}
 
-                {userType === 'owner' && selectedBoat.ownerId === currentUser.uid && (
+                {currentUser && currentUserType === 'owner' && selectedBoat.ownerId === currentUser.uid && (
                   <div className="border-t border-sky-100 pt-6">
                     <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
                       <p className="text-blue-900 font-medium">This is your listing</p>
@@ -808,8 +1005,8 @@ export default function BoatCharterPlatform() {
           </div>
         )}
 
-        {/* My Bookings View */}
-        {view === 'my-bookings' && userType === 'user' && (
+        {/* My Bookings View - Only show if logged in as user */}
+        {view === 'my-bookings' && currentUser && currentUserType === 'user' && (
           <div>
             <h2 className="text-3xl font-bold text-slate-900 mb-6">My Bookings</h2>
             
@@ -862,8 +1059,8 @@ export default function BoatCharterPlatform() {
           </div>
         )}
 
-        {/* Messages View */}
-        {view === 'messages' && (
+        {/* Messages View - Show for logged in users */}
+        {view === 'messages' && currentUser && (
           <div>
             <h2 className="text-3xl font-bold text-slate-900 mb-6">Messages</h2>
             
@@ -983,8 +1180,8 @@ export default function BoatCharterPlatform() {
           </div>
         )}
 
-        {/* Owner Dashboard */}
-        {view === 'owner-dashboard' && userType === 'owner' && (
+        {/* Owner Dashboard - Only show if logged in as owner */}
+        {view === 'owner-dashboard' && currentUser && currentUserType === 'owner' && (
           <div>
             <h2 className="text-3xl font-bold text-slate-900 mb-6">Owner Dashboard</h2>
             
@@ -1065,8 +1262,8 @@ export default function BoatCharterPlatform() {
           </div>
         )}
 
-        {/* List Boat View */}
-        {view === 'list-boat' && userType === 'owner' && (
+        {/* List Boat View - Only show if logged in as owner */}
+        {view === 'list-boat' && currentUser && currentUserType === 'owner' && (
           <div>
             <h2 className="text-3xl font-bold text-slate-900 mb-6">List Your Boat</h2>
             
