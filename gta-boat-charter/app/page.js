@@ -17,7 +17,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 
-import { db, auth, storage } from "../lib/firebase";
+import { db, auth } from "../lib/firebase";
 import {
   collection,
   addDoc,
@@ -32,7 +32,6 @@ import {
   serverTimestamp,
   deleteDoc,
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 import {
   signInWithPopup,
@@ -70,9 +69,7 @@ function buildSlotsFromRules(rules) {
   const startHour = Number(rules?.startHour ?? 9);
   const endHour = Number(rules?.endHour ?? 22);
   const slotLength = Number(rules?.slotLength ?? 4); // hours
-  const minHours = Number(rules?.minHours ?? slotLength);
 
-  // simplest: slotLength is what we show users
   const duration = slotLength * 60;
 
   const startMin = minutes(startHour, 0);
@@ -84,18 +81,47 @@ function buildSlotsFromRules(rules) {
     slots.push(`${minutesToHHMM(s)}-${minutesToHHMM(e)}`);
   }
 
-  // if you want minHours enforced later, we'll use it at booking time
   return slots;
 }
 
-/* -------- Upload helper -------- */
-const uploadBoatImage = async (file, ownerId) => {
-  if (!file) return "";
-  const path = `boats/${ownerId}/${Date.now()}-${file.name}`;
-  const storageRef = ref(storage, path);
-  await uploadBytes(storageRef, file);
-  return await getDownloadURL(storageRef);
-};
+/* ----------------- Cloudinary Upload (Unsigned) -----------------
+   IMPORTANT:
+   - Do NOT use api_key / api_secret in the browser.
+   - Create an UNSIGNED upload preset in Cloudinary.
+   - Put these in .env.local or Netlify env:
+     NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=...
+     NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=...
+------------------------------------------------------------------- */
+async function uploadImagesToCloudinary(files) {
+  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+  const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+
+  if (!cloudName || !uploadPreset) {
+    throw new Error("Missing Cloudinary env vars (CLOUD_NAME or UPLOAD_PRESET).");
+  }
+
+  const uploads = Array.from(files || []).map(async (file) => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("upload_preset", uploadPreset);
+    form.append("folder", "boats");
+
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+      method: "POST",
+      body: form,
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Cloudinary upload failed: ${text}`);
+    }
+
+    const data = await res.json();
+    return data.secure_url;
+  });
+
+  return Promise.all(uploads);
+}
 
 /* --------------------------- DatePicker --------------------------- */
 function DatePicker({ selectedDate, onSelectDate, rules }) {
@@ -127,10 +153,8 @@ function DatePicker({ selectedDate, onSelectDate, rules }) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // allow any future date
     if (date < today) return false;
 
-    // date is "available" if rules produce at least 1 slot
     const slots = buildSlotsFromRules(rules || {});
     return slots.length > 0;
   };
@@ -335,7 +359,7 @@ export default function BoatCharterPlatform() {
     price: 200,
     description: "",
     amenities: "",
-    imageUrl: "",
+    imageUrl: "", // optional cover url
 
     // ✅ availability rules
     startHour: 9,
@@ -344,9 +368,11 @@ export default function BoatCharterPlatform() {
     minHours: 4,
   });
 
-  const [newBoatImageFile, setNewBoatImageFile] = useState(null);
+  const [newBoatImages, setNewBoatImages] = useState([]); // array of File
   const [editingBoat, setEditingBoat] = useState(null);
-  const [editImageFile, setEditImageFile] = useState(null);
+  const [editImageFiles, setEditImageFiles] = useState([]); // array of File
+
+  const [uploading, setUploading] = useState(false);
 
   /* -------- Auth state -------- */
   useEffect(() => {
@@ -362,7 +388,6 @@ export default function BoatCharterPlatform() {
           setUserProfile(profile);
           setCurrentUserType(profile.lastActiveType || profile.accountTypes?.[0] || "user");
         } else {
-          // if user exists in Auth but not Firestore, create profile
           const fallbackType = "user";
           await setDoc(
             userRef,
@@ -429,27 +454,26 @@ export default function BoatCharterPlatform() {
   }, [currentUser]);
 
   /* -------- Messages (subcollection) -------- */
-useEffect(() => {
-  if (!selectedConversation) return;
+  useEffect(() => {
+    if (!selectedConversation?.id) return;
 
-  const q = query(
-    collection(db, "conversations", selectedConversation.id, "messages"),
-    orderBy("createdAt", "asc")
-  );
-
-  const unsubscribe = onSnapshot(q, (snapshot) => {
-    setMessages(
-      snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate?.() || null,
-      }))
+    const q = query(
+      collection(db, "conversations", selectedConversation.id, "messages"),
+      orderBy("createdAt", "asc")
     );
-  });
 
-  return () => unsubscribe();
-}, [selectedConversation?.id]);
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setMessages(
+        snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+          createdAt: d.data().createdAt?.toDate?.() || null,
+        }))
+      );
+    });
 
+    return () => unsubscribe();
+  }, [selectedConversation?.id]);
 
   /* ---------------- Auth Handlers ---------------- */
   const upsertUserProfile = async (user, accountType) => {
@@ -522,6 +546,10 @@ useEffect(() => {
     if (!currentUser) return setShowAuthModal(true);
     if (!boat?.ownerId) return alert("This boat is missing ownerId. Re-list the boat.");
 
+    if (boat.ownerId === currentUser.uid) {
+      return alert("You can’t message your own listing. Use a second account/incognito to test chat.");
+    }
+
     const existing = conversations.find(
       (c) =>
         c.boatId === boat.id &&
@@ -545,7 +573,7 @@ useEffect(() => {
           [boat.ownerId]: boat.ownerName || "Owner",
         },
         lastMessage: "",
-        lastMessageTime: serverTimestamp(),
+        lastMessageAt: serverTimestamp(),
         createdAt: serverTimestamp(),
       });
 
@@ -568,36 +596,30 @@ useEffect(() => {
     }
   };
 
- const sendMessage = async () => {
-  if (!messageInput.trim() || !currentUser || !selectedConversation) return;
+  const sendMessage = async () => {
+    if (!messageInput.trim() || !currentUser || !selectedConversation) return;
 
-  const text = messageInput.trim();
-  setMessageInput("");
+    const text = messageInput.trim();
+    setMessageInput("");
 
-  try {
-    await addDoc(
-      collection(db, "conversations", selectedConversation.id, "messages"),
-      {
+    try {
+      await addDoc(collection(db, "conversations", selectedConversation.id, "messages"), {
         senderId: currentUser.uid,
         senderName: currentUser.displayName || "User",
         text,
         createdAt: serverTimestamp(),
-      }
-    );
+      });
 
-    await updateDoc(
-      doc(db, "conversations", selectedConversation.id),
-      {
+      await updateDoc(doc(db, "conversations", selectedConversation.id), {
         lastMessage: text,
         lastMessageAt: serverTimestamp(),
-      }
-    );
-  } catch (err) {
-    console.error("Send message failed:", err);
-    alert("Message failed to send");
-    setMessageInput(text);
-  }
-};
+      });
+    } catch (err) {
+      console.error("Send message failed:", err);
+      alert("Message failed to send");
+      setMessageInput(text);
+    }
+  };
 
   /* ---------------- Owner: Add Boat ---------------- */
   const addNewBoat = async () => {
@@ -605,13 +627,26 @@ useEffect(() => {
     if (currentUserType !== "owner") return alert("Switch to Owner mode to list boats.");
     if (!newBoat.name || !newBoat.description) return alert("Fill boat name + description");
 
+    setUploading(true);
+
     try {
       const amenitiesArr = (newBoat.amenities || "")
         .split(",")
         .map((a) => a.trim())
         .filter(Boolean);
 
-      const uploadedUrl = await uploadBoatImage(newBoatImageFile, currentUser.uid);
+      const defaultUrl = "https://images.unsplash.com/photo-1569263979104-865ab7cd8d13?w=800&q=80";
+
+      // Upload selected files to Cloudinary (optional)
+      const uploadedUrls = await uploadImagesToCloudinary(newBoatImages);
+
+      // Gallery images = uploaded files + (optional) cover url (if owner pasted a url)
+      const imageUrls = [
+        ...uploadedUrls,
+        ...(newBoat.imageUrl?.trim() ? [newBoat.imageUrl.trim()] : []),
+      ];
+
+      const cover = uploadedUrls[0] || newBoat.imageUrl?.trim() || defaultUrl;
 
       await addDoc(collection(db, "boats"), {
         name: newBoat.name,
@@ -621,15 +656,17 @@ useEffect(() => {
         price: Number(newBoat.price),
         description: newBoat.description,
         amenities: amenitiesArr,
-        imageUrl:
-          uploadedUrl ||
-          newBoat.imageUrl ||
-          "https://images.unsplash.com/photo-1569263979104-865ab7cd8d13?w=800&q=80",
+
+        imageUrls,
+        imageUrl: cover,
+
         ownerId: currentUser.uid,
         ownerName: currentUser.displayName || "Owner",
         ownerEmail: currentUser.email || "",
+
         rating: 0,
         reviews: 0,
+
         availabilityRules: {
           minHours: Number(newBoat.minHours),
           slotLength: Number(newBoat.slotLength),
@@ -640,7 +677,7 @@ useEffect(() => {
         createdAt: serverTimestamp(),
       });
 
-      setNewBoatImageFile(null);
+      setNewBoatImages([]);
       setNewBoat({
         name: "",
         location: "Port Credit",
@@ -650,8 +687,6 @@ useEffect(() => {
         description: "",
         amenities: "",
         imageUrl: "",
-
-        // ✅ availability rules
         startHour: 9,
         endHour: 22,
         slotLength: 4,
@@ -662,7 +697,49 @@ useEffect(() => {
       setView("browse");
     } catch (e) {
       console.error("addNewBoat error:", e);
-      alert(e.message);
+      alert(e.message || "Boat listing failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  /* ---------------- Owner: Edit Boat ---------------- */
+  const saveBoatEdits = async () => {
+    if (!currentUser || currentUserType !== "owner" || !editingBoat) return;
+
+    setUploading(true);
+
+    try {
+      if (editingBoat.ownerId !== currentUser.uid) return alert("Not your boat.");
+
+      const newImageUrls = await uploadImagesToCloudinary(editImageFiles);
+
+      const existingUrls = Array.isArray(editingBoat.imageUrls) ? editingBoat.imageUrls : [];
+      const mergedUrls = newImageUrls.length ? [...existingUrls, ...newImageUrls] : existingUrls;
+
+      const cover = editingBoat.imageUrl?.trim() || mergedUrls[0] || "";
+
+      await updateDoc(doc(db, "boats", editingBoat.id), {
+        name: editingBoat.name,
+        location: editingBoat.location,
+        description: editingBoat.description,
+        amenities: Array.isArray(editingBoat.amenities) ? editingBoat.amenities : [],
+        imageUrls: mergedUrls,
+        imageUrl: cover,
+        updatedAt: serverTimestamp(),
+      });
+
+      alert("Saved!");
+      const updatedBoat = { ...editingBoat, imageUrls: mergedUrls, imageUrl: cover };
+      setSelectedBoat(updatedBoat);
+      setEditingBoat(updatedBoat);
+      setEditImageFiles([]);
+      setView("boat-detail");
+    } catch (e) {
+      console.error(e);
+      alert(e.message || "Save failed");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -860,7 +937,7 @@ useEffect(() => {
                 <button
                   onClick={() => {
                     setEditingBoat(selectedBoat);
-                    setEditImageFile(null);
+                    setEditImageFiles([]);
                     setView("edit-boat");
                   }}
                   className="px-4 py-2 bg-white border border-sky-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50"
@@ -892,6 +969,17 @@ useEffect(() => {
                 alt={selectedBoat.name}
                 className="w-full h-64 md:h-96 object-cover"
               />
+
+              {/* gallery */}
+              {Array.isArray(selectedBoat.imageUrls) && selectedBoat.imageUrls.length > 1 && (
+                <div className="p-4 bg-white border-b border-sky-100">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    {selectedBoat.imageUrls.slice(0, 8).map((u, idx) => (
+                      <img key={idx} src={u} alt="boat" className="w-full h-24 object-cover rounded-lg border" />
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="p-6 md:p-8">
                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6">
@@ -1083,8 +1171,6 @@ useEffect(() => {
                           return (
                             <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
                               <div className={`max-w-[80%] md:max-w-[60%] flex items-end gap-2 ${isMine ? "flex-row-reverse" : ""}`}>
-                                
-                                {/* Optional avatar for other person */}
                                 {!isMine && (
                                   <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 text-xs font-bold">
                                     {msg.senderName?.[0]?.toUpperCase() || "U"}
@@ -1098,7 +1184,6 @@ useEffect(() => {
                                       : "bg-white border border-slate-200 text-slate-900"
                                   }`}
                                 >
-                                  {/* Only show name for the OTHER user */}
                                   {!isMine && (
                                     <div className="text-xs font-semibold text-slate-500 mb-1">
                                       {msg.senderName || "User"}
@@ -1191,6 +1276,13 @@ useEffect(() => {
                 onChange={(e) => setNewBoat({ ...newBoat, amenities: e.target.value })}
               />
 
+              <input
+                className="w-full px-4 py-3 border border-sky-200 rounded-lg"
+                placeholder="Cover Image URL (optional)"
+                value={newBoat.imageUrl}
+                onChange={(e) => setNewBoat({ ...newBoat, imageUrl: e.target.value })}
+              />
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm font-medium text-slate-700">Start Hour</label>
@@ -1240,21 +1332,26 @@ useEffect(() => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Boat Photo</label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Boat Photos (Gallery)</label>
                 <input
                   type="file"
                   accept="image/*"
+                  multiple
                   className="w-full"
-                  onChange={(e) => setNewBoatImageFile(e.target.files?.[0] || null)}
+                  onChange={(e) => setNewBoatImages(Array.from(e.target.files || []))}
                 />
+                {newBoatImages.length > 0 && (
+                  <div className="text-xs text-slate-500 mt-2">{newBoatImages.length} file(s) selected</div>
+                )}
               </div>
 
               <div className="flex gap-3">
                 <button
                   onClick={addNewBoat}
-                  className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-4 rounded-xl font-bold"
+                  disabled={uploading}
+                  className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-4 rounded-xl font-bold disabled:opacity-60"
                 >
-                  List Boat
+                  {uploading ? "Uploading..." : "List Boat"}
                 </button>
 
                 <button
@@ -1319,43 +1416,41 @@ useEffect(() => {
                 placeholder="Amenities (comma-separated)"
               />
 
+              <input
+                className="w-full px-4 py-3 border border-sky-200 rounded-lg"
+                value={editingBoat.imageUrl || ""}
+                onChange={(e) => setEditingBoat({ ...editingBoat, imageUrl: e.target.value })}
+                placeholder="Cover Image URL (optional)"
+              />
+
+              {Array.isArray(editingBoat.imageUrls) && editingBoat.imageUrls.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {editingBoat.imageUrls.slice(0, 8).map((u, idx) => (
+                    <img key={idx} src={u} alt="boat" className="w-full h-24 object-cover rounded-lg border" />
+                  ))}
+                </div>
+              )}
+
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Replace Photo (optional)</label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Add Photos (optional)</label>
                 <input
                   type="file"
                   accept="image/*"
+                  multiple
                   className="w-full"
-                  onChange={(e) => setEditImageFile(e.target.files?.[0] || null)}
+                  onChange={(e) => setEditImageFiles(Array.from(e.target.files || []))}
                 />
+                {editImageFiles.length > 0 && (
+                  <div className="text-xs text-slate-500 mt-2">{editImageFiles.length} file(s) selected</div>
+                )}
               </div>
 
               <button
-                onClick={async () => {
-                  try {
-                    if (editingBoat.ownerId !== currentUser.uid) return alert("Not your boat.");
-
-                    const newUrl = await uploadBoatImage(editImageFile, currentUser.uid);
-
-                    await updateDoc(doc(db, "boats", editingBoat.id), {
-                      name: editingBoat.name,
-                      location: editingBoat.location,
-                      description: editingBoat.description,
-                      amenities: editingBoat.amenities || [],
-                      ...(newUrl ? { imageUrl: newUrl } : {}),
-                      updatedAt: serverTimestamp(),
-                    });
-
-                    alert("Updated!");
-                    setSelectedBoat({ ...editingBoat, ...(newUrl ? { imageUrl: newUrl } : {}) });
-                    setView("boat-detail");
-                  } catch (e) {
-                    console.error(e);
-                    alert("Update failed");
-                  }
-                }}
-                className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-4 rounded-xl font-bold"
+                onClick={saveBoatEdits}
+                disabled={uploading}
+                className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-4 rounded-xl font-bold disabled:opacity-60"
               >
-                Save Changes
+                {uploading ? "Saving..." : "Save Changes"}
               </button>
             </div>
           </div>
