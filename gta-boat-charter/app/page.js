@@ -1079,7 +1079,36 @@ export default function BoatCharterPlatform() {
 
                   <div className="flex flex-col sm:flex-row gap-3">
                     <button
-                      onClick={() => alert("Hook this to Stripe booking later")}
+                      onClick={async () => {
+                        if (!currentUser) return setShowAuthModal(true);
+                        if (!selectedBoat?.id) return alert("Boat not found");
+                        if (!selectedDate || !selectedSlot) return alert("Pick a date + time");
+
+                        try {
+                          const res = await fetch("/.netlify/functions/create-checkout-session", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              boatName: selectedBoat.name,
+                              boatId: selectedBoat.id,
+                              date: selectedDate,
+                              slot: selectedSlot,
+                              price: Number(selectedBoat.price), // $CAD
+                              userId: currentUser.uid,
+                              ownerEmail: selectedBoat.ownerEmail || "",
+                            }),
+                          });
+
+                          const data = await res.json();
+                          if (!res.ok) throw new Error(data?.error || "Checkout failed");
+
+                          // Stripe hosted checkout
+                          window.location.href = data.url;
+                        } catch (e) {
+                          console.error(e);
+                          alert(e.message || "Could not start checkout");
+                        }
+                      }}
                       className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-4 rounded-xl font-bold text-lg disabled:opacity-50"
                       disabled={!selectedDate || !selectedSlot}
                     >
