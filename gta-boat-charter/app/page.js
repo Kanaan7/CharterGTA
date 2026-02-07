@@ -922,7 +922,7 @@ export default function BoatCharterPlatform() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-sky-50 via-blue-50 to-cyan-50">
+    <div className="app-shell">
       {showAuthModal && (
         <AuthModal
           onClose={() => setShowAuthModal(false)}
@@ -932,7 +932,7 @@ export default function BoatCharterPlatform() {
       )}
 
       {/* Header */}
-      <header className="glass border-b-2 border-slate-200 sticky top-0 z-50 shadow-medium animate-slideDown">
+      <header className="header-glass animate-slideDown">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 cursor-pointer" onClick={() => setView("browse")}>
@@ -1021,11 +1021,7 @@ export default function BoatCharterPlatform() {
                 <button
                   key={loc}
                   onClick={() => setLocationFilter(loc)}
-                  className={`px-4 py-2 rounded-full whitespace-nowrap font-medium transition-all ${
-                    locationFilter === loc
-                      ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md"
-                      : "bg-white text-slate-700 hover:bg-blue-50 border border-sky-200"
-                  }`}
+                  className={`chip ${locationFilter === loc ? "chip--active" : ""}`}
                 >
                   {loc}
                 </button>
