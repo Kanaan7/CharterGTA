@@ -932,11 +932,11 @@ export default function BoatCharterPlatform() {
       )}
 
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-md border-b border-sky-200 sticky top-0 z-50 shadow-sm">
+      <header className="glass border-b-2 border-slate-200 sticky top-0 z-50 shadow-medium animate-slideDown">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 cursor-pointer" onClick={() => setView("browse")}>
-              <div className="bg-gradient-to-br from-blue-600 to-cyan-600 p-2 rounded-xl shadow-lg">
+              <div className="gradient-blue rounded-2xl shadow-blue p-2.5 hover-scale">
                 <Anchor className="w-6 h-6 text-white" />
               </div>
               <div>
@@ -966,14 +966,14 @@ export default function BoatCharterPlatform() {
 
                   <button
                     onClick={() => setView("messages")}
-                    className="px-4 py-2 bg-white border border-sky-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    className="px-4 py-2.5 btn-secondary text-sm"
                   >
                     Messages
                   </button>
 
                   <button
                     onClick={() => setView("bookings")}
-                    className="px-4 py-2 bg-white border border-sky-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    className="px-4 py-2.5 btn-secondary text-sm"
                   >
                     My Bookings
                   </button>
@@ -989,7 +989,7 @@ export default function BoatCharterPlatform() {
 
                   <button
                     onClick={handleSignOut}
-                    className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
+                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 active:scale-95"
                   >
                     <LogOut className="w-4 h-4" /> Sign Out
                   </button>
@@ -997,7 +997,7 @@ export default function BoatCharterPlatform() {
               ) : (
                 <button
                   onClick={() => setShowAuthModal(true)}
-                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg text-sm font-medium shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+                  className="px-5 py-2.5 btn-primary text-sm flex items-center gap-2"
                 >
                   <LogIn className="w-4 h-4" /> Sign In
                 </button>
@@ -1033,13 +1033,13 @@ export default function BoatCharterPlatform() {
             </div>
 
             {filteredBoats.length === 0 ? (
-              <div className="bg-white rounded-2xl p-12 text-center shadow-lg border border-sky-100">
+              <div className="bg-white rounded-3xl p-16 text-center shadow-strong border-2 border-slate-200 animate-fadeIn">
                 <Anchor className="w-16 h-16 text-slate-300 mx-auto mb-4" />
                 <h3 className="text-xl font-bold text-slate-700 mb-2">No boats available yet</h3>
                 <p className="text-slate-500 mb-6">List one as an Owner to test availability + chat.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 stagger-animation">
                 {filteredBoats.map((boat) => (
                   <div
                     key={boat.id}
@@ -1049,18 +1049,18 @@ export default function BoatCharterPlatform() {
                       setSelectedSlot("");
                       setView("boat-detail");
                     }}
-                    className="bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all cursor-pointer group border border-sky-100"
+                    className="card-premium cursor-pointer group stagger-animation"
                   >
-                    <div className="relative h-48 overflow-hidden">
+                    <div className="relative h-56 overflow-hidden image-overlay">
                       <img
                         src={
                           boat.imageUrl ||
                           "https://images.unsplash.com/photo-1567899378494-47b22a2ae96a?w=800&q=80"
                         }
                         alt={boat.name}
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
                       />
-                      <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-bold text-blue-700 shadow-md">
+                      <div className="absolute top-4 right-4 glass px-4 py-2 rounded-full font-bold bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent shadow-strong">
                         ${boat.price}/4hrs
                       </div>
                     </div>
@@ -1082,8 +1082,8 @@ export default function BoatCharterPlatform() {
                         </div>
                       </div>
                       <div className="text-sm text-slate-600 mb-3">{boat.type}</div>
-                      <div className="pt-3 border-t border-sky-100">
-                        <button className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-2 rounded-lg font-medium hover:shadow-lg transition-all">
+                      <div className="pt-4 border-t-2 border-slate-100">
+                        <button className="w-full btn-primary">
                           View Details
                         </button>
                       </div>
@@ -1113,7 +1113,7 @@ export default function BoatCharterPlatform() {
                     setEditImageFiles([]);
                     setView("edit-boat");
                   }}
-                  className="px-4 py-2 bg-white border border-sky-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  className="px-4 py-2.5 btn-secondary text-sm"
                 >
                   Edit Listing
                 </button>
@@ -1133,7 +1133,7 @@ export default function BoatCharterPlatform() {
               </div>
             )}
 
-            <div className="bg-white rounded-2xl overflow-hidden shadow-xl border border-sky-100">
+            <div className="bg-white rounded-3xl overflow-hidden shadow-strong border-2 border-slate-200 animate-fadeIn">
               <img
                 src={
                   selectedBoat.imageUrl ||
@@ -1169,7 +1169,7 @@ export default function BoatCharterPlatform() {
                     </div>
                   </div>
 
-                  <div className="bg-gradient-to-br from-blue-600 to-cyan-600 text-white px-6 py-4 rounded-xl shadow-lg">
+                  <div className="gradient-blue text-white px-6 py-5 rounded-2xl shadow-blue">
                     <div className="text-sm opacity-90">Starting at</div>
                     <div className="text-3xl font-bold">${selectedBoat.price}</div>
                     <div className="text-sm opacity-90">per 4 hours</div>
@@ -1194,7 +1194,7 @@ export default function BoatCharterPlatform() {
                       {(selectedBoat.amenities || []).map((a, idx) => (
                         <span
                           key={idx}
-                          className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-medium border border-blue-200"
+                          className="badge badge-blue"
                         >
                           {a}
                         </span>
@@ -1334,7 +1334,7 @@ export default function BoatCharterPlatform() {
                           alert(e.message || "Checkout failed");
                         }
                       }}
-                      className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-4 rounded-xl font-bold text-lg disabled:opacity-50"
+                      className="flex-1 btn-primary py-4 text-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:transform-none"
                       disabled={!selectedDate || !selectedSlot}
                     >
                       {currentUser ? `Book Now - $${selectedBoat.price}` : "Sign In to Book"}
@@ -1342,7 +1342,7 @@ export default function BoatCharterPlatform() {
 
                     <button
                       onClick={() => startConversation(selectedBoat)}
-                      className="px-6 py-4 border-2 border-blue-600 text-blue-600 rounded-xl font-bold hover:bg-blue-50 transition-all flex items-center justify-center gap-2"
+                      className="px-6 py-4 border-2 border-blue-600 text-blue-600 rounded-xl font-bold hover:bg-blue-50 hover:border-blue-700 transition-all flex items-center justify-center gap-2 active:scale-95"
                     >
                       <MessageCircle className="w-5 h-5" />
                       Message Owner
@@ -1362,7 +1362,7 @@ export default function BoatCharterPlatform() {
 
               <button
                 onClick={() => setView("browse")}
-                className="px-4 py-2 bg-white border border-sky-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="px-4 py-2.5 btn-secondary text-sm"
               >
                 ← Back to Browse
               </button>
@@ -1370,7 +1370,7 @@ export default function BoatCharterPlatform() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="md:col-span-1 bg-white rounded-2xl shadow-lg border border-sky-100 overflow-hidden">
-                <div className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white p-4">
+                <div className="gradient-blue text-white p-5">
                   <h3 className="font-bold text-lg">Conversations</h3>
                 </div>
 
@@ -1408,7 +1408,7 @@ export default function BoatCharterPlatform() {
               <div className="md:col-span-2 bg-white rounded-2xl shadow-lg border border-sky-100 overflow-hidden">
                 {selectedConversation ? (
                   <div className="flex flex-col h-[600px]">
-                    <div className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white p-4">
+                    <div className="gradient-blue text-white p-5">
                       <h3 className="font-bold text-lg">{selectedConversation.boatName}</h3>
                     </div>
 
@@ -1504,7 +1504,7 @@ export default function BoatCharterPlatform() {
           <div>
             <h2 className="text-3xl font-bold text-slate-900 mb-6">List Your Boat</h2>
 
-            <div className="bg-white rounded-2xl p-6 md:p-8 shadow-xl border border-sky-100 space-y-4">
+            <div className="bg-white rounded-3xl p-8 md:p-10 shadow-strong border-2 border-slate-200 space-y-5 animate-fadeIn">
               <input
                 className="w-full px-4 py-3 border border-sky-200 rounded-lg"
                 placeholder="Boat Name"
@@ -1633,13 +1633,13 @@ export default function BoatCharterPlatform() {
               <h2 className="text-3xl font-bold text-slate-900">Edit Listing</h2>
               <button
                 onClick={() => setView("boat-detail")}
-                className="px-4 py-2 bg-white border border-sky-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="px-4 py-2.5 btn-secondary text-sm"
               >
                 ← Back
               </button>
             </div>
 
-            <div className="bg-white rounded-2xl p-6 md:p-8 shadow-xl border border-sky-100 space-y-4">
+            <div className="bg-white rounded-3xl p-8 md:p-10 shadow-strong border-2 border-slate-200 space-y-5 animate-fadeIn">
               <input
                 className="w-full px-4 py-3 border border-sky-200 rounded-lg"
                 value={editingBoat.name || ""}
@@ -1724,17 +1724,17 @@ export default function BoatCharterPlatform() {
               <h2 className="text-3xl font-bold text-slate-900">My Bookings</h2>
               <button
                 onClick={() => setView("browse")}
-                className="px-4 py-2 bg-white border border-sky-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="px-4 py-2.5 btn-secondary text-sm"
               >
                 ← Back to Browse
               </button>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-lg border border-sky-100 overflow-hidden">
+            <div className="bg-white rounded-3xl shadow-strong border-2 border-slate-200 overflow-hidden">
               {myBookings.length === 0 ? (
                 <div className="p-10 text-center text-slate-500">No bookings yet.</div>
               ) : (
-                <div className="divide-y divide-sky-100">
+                <div className="divide-y-2 divide-slate-100">
                   {myBookings.map((b) => (
                     <div key={b.id} className="p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                       <div>
