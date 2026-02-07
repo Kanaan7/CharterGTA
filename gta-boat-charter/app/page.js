@@ -31,6 +31,7 @@ import {
   getDoc,
   serverTimestamp,
   deleteDoc,
+  getDocs,
 } from "firebase/firestore";
 
 import {
@@ -97,7 +98,7 @@ async function uploadImagesToCloudinary(files) {
   const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
 
   if (!cloudName || !uploadPreset) {
-    throw new Error("Missing Cloudinary env vars (CLOUD_NAME or UPLOAD_PRESET).");
+    throw new Error("Missing Cloudinary env vars (NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME or NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET).");
   }
 
   const uploads = Array.from(files || []).map(async (file) => {
@@ -336,6 +337,7 @@ export default function BoatCharterPlatform() {
 
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedSlot, setSelectedSlot] = useState("");
+  const [bookedSlotsForDate, setBookedSlotsForDate] = useState([]);
 
   const [currentUser, setCurrentUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
@@ -349,6 +351,15 @@ export default function BoatCharterPlatform() {
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [messageInput, setMessageInput] = useState("");
+
+  // bookings
+  const [myBookings, setMyBookings] = useState([]);
+
+  // rating
+  const [ratingValue, setRatingValue] = useState(5);
+  const [ratingText, setRatingText] = useState("");
+  const [alreadyReviewed, setAlreadyReviewed] = useState(false);
+  const [hasConfirmedBookingForBoat, setHasConfirmedBookingForBoat] = useState(false);
 
   // owner list boat
   const [newBoat, setNewBoat] = useState({
@@ -474,6 +485,98 @@ export default function BoatCharterPlatform() {
 
     return () => unsubscribe();
   }, [selectedConversation?.id]);
+
+  /* -------- Booked Slots for Date -------- */
+  useEffect(() => {
+    if (!selectedBoat?.id || !selectedDate) {
+      setBookedSlotsForDate([]);
+      return;
+    }
+
+    const q = query(
+      collection(db, "bookings"),
+      where("boatId", "==", selectedBoat.id),
+      where("date", "==", selectedDate),
+      where("status", "==", "confirmed")
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const booked = snap.docs.map((d) => d.data().slot).filter(Boolean);
+        setBookedSlotsForDate(booked);
+
+        // if the selected slot was just booked, unselect it
+        if (selectedSlot && booked.includes(selectedSlot)) {
+          setSelectedSlot("");
+        }
+      },
+      (err) => console.error("bookings snapshot error:", err)
+    );
+
+    return () => unsub();
+  }, [selectedBoat?.id, selectedDate, selectedSlot]);
+
+  /* -------- My Bookings -------- */
+  useEffect(() => {
+    if (!currentUser) {
+      setMyBookings([]);
+      return;
+    }
+
+    const q = query(collection(db, "bookings"), where("userId", "==", currentUser.uid), orderBy("createdAt", "desc"));
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setMyBookings(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      },
+      (err) => console.error("my bookings error:", err)
+    );
+
+    return () => unsub();
+  }, [currentUser?.uid]);
+
+  /* -------- Rating gating (must have confirmed booking for this boat) -------- */
+  useEffect(() => {
+    if (!currentUser?.uid || !selectedBoat?.id) {
+      setHasConfirmedBookingForBoat(false);
+      return;
+    }
+
+    const q = query(
+      collection(db, "bookings"),
+      where("boatId", "==", selectedBoat.id),
+      where("userId", "==", currentUser.uid),
+      where("status", "==", "confirmed")
+    );
+
+    const unsub = onSnapshot(q, (snap) => {
+      setHasConfirmedBookingForBoat(!snap.empty);
+    });
+
+    return () => unsub();
+  }, [currentUser?.uid, selectedBoat?.id]);
+
+  /* -------- Already reviewed check -------- */
+  useEffect(() => {
+    if (!currentUser?.uid || !selectedBoat?.id) {
+      setAlreadyReviewed(false);
+      return;
+    }
+
+    const q = query(
+      collection(db, "reviews"),
+      where("boatId", "==", selectedBoat.id),
+      where("userId", "==", currentUser.uid)
+    );
+
+    const unsub = onSnapshot(q, (snap) => {
+      setAlreadyReviewed(!snap.empty);
+    });
+
+    return () => unsub();
+  }, [currentUser?.uid, selectedBoat?.id]);
 
   /* ---------------- Auth Handlers ---------------- */
   const upsertUserProfile = async (user, accountType) => {
@@ -621,6 +724,61 @@ export default function BoatCharterPlatform() {
     }
   };
 
+  /* ---------------- Rating ---------------- */
+  const submitRating = async () => {
+    if (!currentUser) return setShowAuthModal(true);
+    if (!selectedBoat?.id) return;
+
+    if (selectedBoat.ownerId === currentUser.uid) return alert("You can’t rate your own boat.");
+    if (!hasConfirmedBookingForBoat) return alert("You can only rate after a confirmed booking.");
+    if (alreadyReviewed) return alert("You already rated this boat.");
+
+    const stars = Number(ratingValue);
+    if (Number.isNaN(stars) || stars < 1 || stars > 5) return alert("Pick 1 to 5 stars.");
+
+    try {
+      await addDoc(collection(db, "reviews"), {
+        boatId: selectedBoat.id,
+        boatName: selectedBoat.name || "",
+        ownerId: selectedBoat.ownerId || "",
+        userId: currentUser.uid,
+        userName: currentUser.displayName || "User",
+        stars,
+        text: ratingText.trim(),
+        createdAt: serverTimestamp(),
+      });
+
+      // recompute rating from all reviews for this boat
+      const allQ = query(collection(db, "reviews"), where("boatId", "==", selectedBoat.id));
+      const snap = await getDocs(allQ);
+
+      let sum = 0;
+      let count = 0;
+      snap.forEach((d) => {
+        const s = Number(d.data().stars || 0);
+        if (s >= 1 && s <= 5) {
+          sum += s;
+          count += 1;
+        }
+      });
+
+      const avg = count ? Math.round((sum / count) * 10) / 10 : 0;
+
+      await updateDoc(doc(db, "boats", selectedBoat.id), {
+        rating: avg,
+        reviews: count,
+        updatedAt: serverTimestamp(),
+      });
+
+      setRatingText("");
+      setRatingValue(5);
+      alert("Thanks! Rating submitted.");
+    } catch (e) {
+      console.error(e);
+      alert(e.message || "Rating failed");
+    }
+  };
+
   /* ---------------- Owner: Add Boat ---------------- */
   const addNewBoat = async () => {
     if (!currentUser) return setShowAuthModal(true);
@@ -717,7 +875,7 @@ export default function BoatCharterPlatform() {
       const existingUrls = Array.isArray(editingBoat.imageUrls) ? editingBoat.imageUrls : [];
       const mergedUrls = newImageUrls.length ? [...existingUrls, ...newImageUrls] : existingUrls;
 
-      const cover = editingBoat.imageUrl?.trim() || mergedUrls[0] || "";
+      const cover = (editingBoat.imageUrl || "").trim() || mergedUrls[0] || "";
 
       await updateDoc(doc(db, "boats", editingBoat.id), {
         name: editingBoat.name,
@@ -803,6 +961,13 @@ export default function BoatCharterPlatform() {
                     className="px-4 py-2 bg-white border border-sky-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50"
                   >
                     Messages
+                  </button>
+
+                  <button
+                    onClick={() => setView("bookings")}
+                    className="px-4 py-2 bg-white border border-sky-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    My Bookings
                   </button>
 
                   {currentUserType === "owner" && (
@@ -1030,6 +1195,58 @@ export default function BoatCharterPlatform() {
                   </div>
                 </div>
 
+                {/* Rating */}
+                <div className="border-t border-sky-100 pt-6 mb-6">
+                  <h3 className="text-xl font-bold text-slate-900 mb-3">Rate this Boat</h3>
+
+                  {!currentUser ? (
+                    <button
+                      onClick={() => setShowAuthModal(true)}
+                      className="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg font-medium"
+                    >
+                      Sign in to rate
+                    </button>
+                  ) : selectedBoat.ownerId === currentUser.uid ? (
+                    <div className="text-slate-500 text-sm">Owners can’t rate their own listing.</div>
+                  ) : !hasConfirmedBookingForBoat ? (
+                    <div className="text-slate-500 text-sm">You can rate after you have a confirmed booking.</div>
+                  ) : alreadyReviewed ? (
+                    <div className="text-slate-500 text-sm">You already rated this boat.</div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <label className="text-sm font-medium text-slate-700">Stars</label>
+                        <select
+                          value={ratingValue}
+                          onChange={(e) => setRatingValue(Number(e.target.value))}
+                          className="px-3 py-2 border border-sky-200 rounded-lg bg-white"
+                        >
+                          <option value={5}>⭐⭐⭐⭐⭐ (5)</option>
+                          <option value={4}>⭐⭐⭐⭐ (4)</option>
+                          <option value={3}>⭐⭐⭐ (3)</option>
+                          <option value={2}>⭐⭐ (2)</option>
+                          <option value={1}>⭐ (1)</option>
+                        </select>
+                      </div>
+
+                      <textarea
+                        rows={3}
+                        value={ratingText}
+                        onChange={(e) => setRatingText(e.target.value)}
+                        placeholder="Optional comment..."
+                        className="w-full px-4 py-3 border border-sky-200 rounded-lg"
+                      />
+
+                      <button
+                        onClick={submitRating}
+                        className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white px-6 py-3 rounded-xl font-bold"
+                      >
+                        Submit Rating
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 <div className="border-t border-sky-100 pt-6">
                   <h3 className="text-xl font-bold text-slate-900 mb-4">Book Your Charter</h3>
 
@@ -1051,22 +1268,24 @@ export default function BoatCharterPlatform() {
 
                       {selectedDate ? (
                         <div className="space-y-2">
-                          {buildSlotsFromRules(selectedBoat.availabilityRules || {}).map((slot) => (
-                            <button
-                              key={slot}
-                              onClick={() => setSelectedSlot(slot)}
-                              className={`w-full px-4 py-3 rounded-lg font-medium transition-all ${
-                                selectedSlot === slot
-                                  ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md"
-                                  : "bg-white border-2 border-sky-200 text-slate-700 hover:border-blue-400"
-                              }`}
-                            >
-                              <div className="flex items-center justify-center gap-2">
-                                <Clock className="w-4 h-4" />
-                                {slot}
-                              </div>
-                            </button>
-                          ))}
+                          {buildSlotsFromRules(selectedBoat.availabilityRules || {})
+                            .filter((slot) => !bookedSlotsForDate.includes(slot))
+                            .map((slot) => (
+                              <button
+                                key={slot}
+                                onClick={() => setSelectedSlot(slot)}
+                                className={`w-full px-4 py-3 rounded-lg font-medium transition-all ${
+                                  selectedSlot === slot
+                                    ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md"
+                                    : "bg-white border-2 border-sky-200 text-slate-700 hover:border-blue-400"
+                                }`}
+                              >
+                                <div className="flex items-center justify-center gap-2">
+                                  <Clock className="w-4 h-4" />
+                                  {slot}
+                                </div>
+                              </button>
+                            ))}
                         </div>
                       ) : (
                         <div className="bg-slate-50 border border-slate-200 rounded-lg p-8 text-center">
@@ -1081,11 +1300,10 @@ export default function BoatCharterPlatform() {
                     <button
                       onClick={async () => {
                         if (!currentUser) return setShowAuthModal(true);
-                        if (!selectedBoat?.id) return alert("Boat not found");
-                        if (!selectedDate || !selectedSlot) return alert("Pick a date + time");
+                        if (!selectedBoat?.id || !selectedDate || !selectedSlot) return;
 
                         try {
-                          const res = await fetch("/.netlify/functions/create-checkout-session", {
+                          const res = await fetch("/api/create-checkout-session", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
@@ -1093,20 +1311,19 @@ export default function BoatCharterPlatform() {
                               boatId: selectedBoat.id,
                               date: selectedDate,
                               slot: selectedSlot,
-                              price: Number(selectedBoat.price), // $CAD
+                              price: selectedBoat.price,
                               userId: currentUser.uid,
                               ownerEmail: selectedBoat.ownerEmail || "",
+                              ownerId: selectedBoat.ownerId || "",
                             }),
                           });
 
                           const data = await res.json();
                           if (!res.ok) throw new Error(data?.error || "Checkout failed");
 
-                          // Stripe hosted checkout
                           window.location.href = data.url;
                         } catch (e) {
-                          console.error(e);
-                          alert(e.message || "Could not start checkout");
+                          alert(e.message || "Checkout failed");
                         }
                       }}
                       className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-4 rounded-xl font-bold text-lg disabled:opacity-50"
@@ -1199,7 +1416,11 @@ export default function BoatCharterPlatform() {
 
                           return (
                             <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-                              <div className={`max-w-[80%] md:max-w-[60%] flex items-end gap-2 ${isMine ? "flex-row-reverse" : ""}`}>
+                              <div
+                                className={`max-w-[80%] md:max-w-[60%] flex items-end gap-2 ${
+                                  isMine ? "flex-row-reverse" : ""
+                                }`}
+                              >
                                 {!isMine && (
                                   <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 text-xs font-bold">
                                     {msg.senderName?.[0]?.toUpperCase() || "U"}
@@ -1223,7 +1444,10 @@ export default function BoatCharterPlatform() {
 
                                   <div className={`text-[11px] mt-1 ${isMine ? "text-white/70" : "text-slate-400"}`}>
                                     {msg.createdAt
-                                      ? msg.createdAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+                                      ? msg.createdAt.toLocaleTimeString("en-US", {
+                                          hour: "numeric",
+                                          minute: "2-digit",
+                                        })
                                       : ""}
                                   </div>
                                 </div>
@@ -1481,6 +1705,45 @@ export default function BoatCharterPlatform() {
               >
                 {uploading ? "Saving..." : "Save Changes"}
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* My Bookings */}
+        {view === "bookings" && currentUser && (
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-3xl font-bold text-slate-900">My Bookings</h2>
+              <button
+                onClick={() => setView("browse")}
+                className="px-4 py-2 bg-white border border-sky-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                ← Back to Browse
+              </button>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-lg border border-sky-100 overflow-hidden">
+              {myBookings.length === 0 ? (
+                <div className="p-10 text-center text-slate-500">No bookings yet.</div>
+              ) : (
+                <div className="divide-y divide-sky-100">
+                  {myBookings.map((b) => (
+                    <div key={b.id} className="p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div>
+                        <div className="font-bold text-slate-900">{b.boatName || "Boat"}</div>
+                        <div className="text-sm text-slate-600">
+                          {b.date} • {b.slot}
+                        </div>
+                        <div className="text-xs text-slate-500">Status: {b.status || "confirmed"}</div>
+                      </div>
+
+                      <div className="font-bold text-slate-900">
+                        ${Number(b.price || 0).toFixed(2)} {String(b.currency || "cad").toUpperCase()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
