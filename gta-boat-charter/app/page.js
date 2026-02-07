@@ -518,24 +518,32 @@ export default function BoatCharterPlatform() {
   }, [selectedBoat?.id, selectedDate, selectedSlot]);
 
   /* -------- My Bookings -------- */
-  useEffect(() => {
-    if (!currentUser) {
-      setMyBookings([]);
-      return;
-    }
+ useEffect(() => {
+  if (!currentUser) {
+    setMyBookings([]);
+    return;
+  }
 
-    const q = query(collection(db, "bookings"), where("userId", "==", currentUser.uid), orderBy("createdAt", "desc"));
+  const q = query(collection(db, "bookings"), where("userId", "==", currentUser.uid));
 
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        setMyBookings(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      },
-      (err) => console.error("my bookings error:", err)
-    );
+  const unsub = onSnapshot(
+    q,
+    (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      // sort client-side to avoid index requirement
+      list.sort((a, b) => {
+        const ta = a.createdAt?.toMillis?.() || 0;
+        const tb = b.createdAt?.toMillis?.() || 0;
+        return tb - ta;
+      });
+      setMyBookings(list);
+    },
+    (err) => console.error("my bookings error:", err)
+  );
 
-    return () => unsub();
-  }, [currentUser?.uid]);
+  return () => unsub();
+}, [currentUser?.uid]);
+
 
   /* -------- Rating gating (must have confirmed booking for this boat) -------- */
   useEffect(() => {

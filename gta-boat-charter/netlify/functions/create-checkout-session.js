@@ -8,7 +8,7 @@ exports.handler = async (event) => {
   try {
     const { boatName, boatId, date, slot, price, userId, ownerEmail, ownerId } = JSON.parse(event.body);
 
-    if (!boatId || !date || !slot || !price || !userId) {
+    if (!boatId || !date || !slot || !userId) {
       return { statusCode: 400, body: JSON.stringify({ error: "Missing required fields" }) };
     }
 
@@ -19,7 +19,7 @@ exports.handler = async (event) => {
           price_data: {
             currency: "cad",
             product_data: {
-              name: `${boatName || "Boat"} Charter`,
+              name: `${boatName} Charter`,
               description: `Booking for ${date} at ${slot}`,
             },
             unit_amount: Math.round(Number(price) * 100),
@@ -31,19 +31,22 @@ exports.handler = async (event) => {
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/booking-success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/booking-cancelled`,
       metadata: {
-        boatId,
-        boatName: boatName || "",
-        date,
-        slot,
-        userId,
-        ownerEmail: ownerEmail || "",
-        ownerId: ownerId || "",
+        boatId: String(boatId),
+        boatName: String(boatName || ""),
+        date: String(date),
+        slot: String(slot),
+        userId: String(userId),
+        ownerEmail: String(ownerEmail || ""),
+        ownerId: String(ownerId || ""),
       },
     });
 
     return {
       statusCode: 200,
-      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
       body: JSON.stringify({ sessionId: session.id, url: session.url }),
     };
   } catch (error) {
