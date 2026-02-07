@@ -6,20 +6,35 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { boatName, boatId, date, slot, price, userId, ownerEmail, ownerId } = JSON.parse(event.body);
+    const {
+      boatName,
+      boatId,
+      date,
+      slot,
+      price,
+      userId,
+      ownerEmail,
+      ownerId,
+    } = JSON.parse(event.body || "{}");
 
-    if (!boatId || !date || !slot || !userId) {
+    if (!boatId || !date || !slot || !price || !userId) {
       return { statusCode: 400, body: JSON.stringify({ error: "Missing required fields" }) };
     }
 
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (!appUrl) {
+      return { statusCode: 500, body: JSON.stringify({ error: "Missing NEXT_PUBLIC_APP_URL env var" }) };
+    }
+
     const session = await stripe.checkout.sessions.create({
+      mode: "payment",
       payment_method_types: ["card"],
       line_items: [
         {
           price_data: {
             currency: "cad",
             product_data: {
-              name: `${boatName} Charter`,
+              name: `${boatName || "Boat"} Charter`,
               description: `Booking for ${date} at ${slot}`,
             },
             unit_amount: Math.round(Number(price) * 100),
@@ -27,9 +42,8 @@ exports.handler = async (event) => {
           quantity: 1,
         },
       ],
-      mode: "payment",
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/booking-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/booking-cancelled`,
+      success_url: `${appUrl}/booking-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${appUrl}/booking-cancelled`,
       metadata: {
         boatId: String(boatId),
         boatName: String(boatName || ""),
@@ -43,10 +57,7 @@ exports.handler = async (event) => {
 
     return {
       statusCode: 200,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sessionId: session.id, url: session.url }),
     };
   } catch (error) {
