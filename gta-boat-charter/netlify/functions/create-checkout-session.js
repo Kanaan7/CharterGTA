@@ -6,16 +6,7 @@ exports.handler = async (event) => {
   }
 
   try {
-    const {
-      boatName,
-      boatId,
-      date,
-      slot,
-      price,
-      userId,
-      ownerEmail,
-      ownerId,
-    } = JSON.parse(event.body || "{}");
+    const { boatName, boatId, date, slot, price, userId, ownerEmail, ownerId } = JSON.parse(event.body || "{}");
 
     if (!boatId || !date || !slot || !price || !userId) {
       return { statusCode: 400, body: JSON.stringify({ error: "Missing required fields" }) };
@@ -27,7 +18,6 @@ exports.handler = async (event) => {
     }
 
     const session = await stripe.checkout.sessions.create({
-      mode: "payment",
       payment_method_types: ["card"],
       line_items: [
         {
@@ -42,11 +32,12 @@ exports.handler = async (event) => {
           quantity: 1,
         },
       ],
+      mode: "payment",
       success_url: `${appUrl}/booking-success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${appUrl}/booking-cancelled`,
       metadata: {
         boatId: String(boatId),
-        boatName: String(boatName || ""),
+        boatName: String(boatName || "Boat"),
         date: String(date),
         slot: String(slot),
         userId: String(userId),
@@ -60,8 +51,8 @@ exports.handler = async (event) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sessionId: session.id, url: session.url }),
     };
-  } catch (error) {
-    console.error("Error creating checkout session:", error);
-    return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+  } catch (err) {
+    console.error("create-checkout-session error:", err);
+    return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
   }
 };
