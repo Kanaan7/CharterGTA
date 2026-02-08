@@ -1020,7 +1020,7 @@ export default function BoatCharterPlatform() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="tab-scroll items-center">
               {currentUser ? (
                 <>
                   {userProfile?.accountTypes?.length > 1 && (
@@ -1290,7 +1290,7 @@ export default function BoatCharterPlatform() {
               <p className="text-slate-600">Explore premium boats across Lake Ontario's finest harbours</p>
             </div>
 
-            <div className="mb-6 flex gap-2 overflow-x-auto pb-2">
+            <div className="mb-6 tab-scroll">
               {LOCATIONS.map((loc) => (
                 <button
                   key={loc}
