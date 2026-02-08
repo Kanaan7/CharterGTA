@@ -168,6 +168,37 @@ async function uploadImagesToCloudinary(files) {
   return Promise.all(uploads);
 }
 
+
+async function uploadMessageAttachmentToCloudinary(file) {
+  if (!file) return null;
+  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+  const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+
+  if (!cloudName || !uploadPreset) {
+    throw new Error("Missing Cloudinary env vars for attachments.");
+  }
+
+  const form = new FormData();
+  form.append("file", file);
+  form.append("upload_preset", uploadPreset);
+  form.append("folder", "messages");
+
+  // For now we support image attachments (png/jpg/webp). If you want PDFs too, we can switch to /auto/upload.
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+    method: "POST",
+    body: form,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Cloudinary attachment upload failed: ${text}`);
+  }
+
+  const data = await res.json();
+  return data.secure_url;
+}
+
+
 /* --------------------------- DatePicker --------------------------- */
 function DatePicker({ selectedDate, onSelectDate, rules }) {
   const [currentMonth, setCurrentMonth] = useState(() => new Date());
@@ -377,6 +408,11 @@ export default function BoatCharterPlatform() {
 
   const [boats, setBoats] = useState([]);
   const [selectedBoat, setSelectedBoat] = useState(null);
+  const [activeGalleryIndex, setActiveGalleryIndex] = useState(0);
+
+  useEffect(() => {
+    setActiveGalleryIndex(0);
+  }, [selectedBoat?.id]);
   const [locationFilter, setLocationFilter] = useState("All Locations");
 
   const [selectedDate, setSelectedDate] = useState("");
@@ -395,6 +431,20 @@ export default function BoatCharterPlatform() {
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [messageInput, setMessageInput] = useState("");
+  const [messageAttachment, setMessageAttachment] = useState(null);
+  const [messageAttachmentPreview, setMessageAttachmentPreview] = useState(null);
+  const attachmentInputRef = React.useRef(null);
+
+  useEffect(() => {
+    if (!messageAttachment) {
+      setMessageAttachmentPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(messageAttachment);
+    setMessageAttachmentPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [messageAttachment]);
+
 
   // bookings
   const [myBookings, setMyBookings] = useState([]);
@@ -781,27 +831,47 @@ export default function BoatCharterPlatform() {
   };
 
   const sendMessage = async () => {
-    if (!messageInput.trim() || !currentUser || !selectedConversation) return;
+    if (!currentUser || !selectedConversation) return;
 
-    const text = messageInput.trim();
+    const text = (messageInput || "").trim();
+    const file = messageAttachment;
+
+    if (!text && !file) return;
+
+    // optimistic clear
     setMessageInput("");
+    setMessageAttachment(null);
 
     try {
-      await addDoc(collection(db, "conversations", selectedConversation.id, "messages"), {
+      let attachmentUrl = null;
+      let attachmentType = null;
+
+      if (file) {
+        attachmentType = file.type || "image";
+        attachmentUrl = await uploadMessageAttachmentToCloudinary(file);
+      }
+
+      const payload = {
         senderId: currentUser.uid,
         senderName: currentUser.displayName || "User",
-        text,
+        text: text || "",
+        attachmentUrl: attachmentUrl || null,
+        attachmentType: attachmentType || null,
         createdAt: serverTimestamp(),
-      });
+      };
+
+      await addDoc(collection(db, "conversations", selectedConversation.id, "messages"), payload);
 
       await updateDoc(doc(db, "conversations", selectedConversation.id), {
-        lastMessage: text,
+        lastMessage: text ? text : attachmentUrl ? "📎 Attachment" : "",
         lastMessageAt: serverTimestamp(),
       });
     } catch (err) {
       console.error("Send message failed:", err);
-      alert("Message failed to send");
-      setMessageInput(text);
+      alert(err?.message || "Message failed to send");
+      // restore input if it was text-only
+      if (text) setMessageInput(text);
+      if (file) setMessageAttachment(file);
     }
   };
 
@@ -1416,10 +1486,55 @@ export default function BoatCharterPlatform() {
               {/* gallery */}
               {Array.isArray(selectedBoat.imageUrls) && selectedBoat.imageUrls.length > 1 && (
                 <div className="p-4 bg-white border-b border-sky-100">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                    {selectedBoat.imageUrls.slice(0, 8).map((u, idx) => (
-                      <img key={idx} src={u} alt="boat" className="w-full h-24 object-cover rounded-lg border" />
-                    ))}
+                  <div className="gallery">
+                    <div className="gallery-main">
+                      <img
+                        src={selectedBoat.imageUrls[activeGalleryIndex]}
+                        alt={`${selectedBoat.name} photo ${activeGalleryIndex + 1}`}
+                      />
+
+                      <button
+                        type="button"
+                        className="gallery-nav gallery-prev"
+                        onClick={() =>
+                          setActiveGalleryIndex((i) =>
+                            (i - 1 + selectedBoat.imageUrls.length) % selectedBoat.imageUrls.length
+                          )
+                        }
+                        aria-label="Previous photo"
+                      >
+                        ‹
+                      </button>
+
+                      <button
+                        type="button"
+                        className="gallery-nav gallery-next"
+                        onClick={() =>
+                          setActiveGalleryIndex((i) => (i + 1) % selectedBoat.imageUrls.length)
+                        }
+                        aria-label="Next photo"
+                      >
+                        ›
+                      </button>
+
+                      <div className="gallery-count">
+                        {activeGalleryIndex + 1} / {selectedBoat.imageUrls.length}
+                      </div>
+                    </div>
+
+                    <div className="gallery-thumbs">
+                      {selectedBoat.imageUrls.map((u, idx) => (
+                        <button
+                          key={`${u}-${idx}`}
+                          type="button"
+                          className={`gallery-thumb ${idx === activeGalleryIndex ? "is-active" : ""}`}
+                          onClick={() => setActiveGalleryIndex(idx)}
+                          aria-label={`View photo ${idx + 1}`}
+                        >
+                          <img src={u} alt="" />
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
@@ -1718,7 +1833,24 @@ export default function BoatCharterPlatform() {
                                     </div>
                                   )}
 
-                                  <div className="whitespace-pre-wrap break-words">{msg.text}</div>
+                                  {msg.attachmentUrl && (
+                                    <a
+                                      href={msg.attachmentUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="block mb-2"
+                                    >
+                                      <img
+                                        src={msg.attachmentUrl}
+                                        alt="attachment"
+                                        className="chat-attachment"
+                                      />
+                                    </a>
+                                  )}
+
+                                  {msg.text && (
+                                    <div className="whitespace-pre-wrap break-words">{msg.text}</div>
+                                  )}
 
                                   <div className={`text-[11px] mt-1 ${isMine ? "text-white/70" : "text-slate-400"}`}>
                                     {msg.createdAt
@@ -1737,18 +1869,58 @@ export default function BoatCharterPlatform() {
                     </div>
 
                     <div className="p-4 border-t border-sky-100">
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 items-end">
                         <input
-                          type="text"
-                          value={messageInput}
-                          onChange={(e) => setMessageInput(e.target.value)}
-                          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                          placeholder="Type a message..."
-                          className="flex-1 px-4 py-3 rounded-xl border border-sky-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          type="file"
+                          accept="image/*"
+                          ref={attachmentInputRef}
+                          className="hidden"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0] || null;
+                            setMessageAttachment(f);
+                            // allow selecting the same file again
+                            e.target.value = "";
+                          }}
                         />
+
+                        <button
+                          type="button"
+                          className="chat-attach-btn"
+                          onClick={() => attachmentInputRef.current?.click()}
+                          aria-label="Add attachment"
+                        >
+                          <Plus className="w-5 h-5" />
+                        </button>
+
+                        <div className="flex-1">
+                          {messageAttachmentPreview && (
+                            <div className="chat-attach-preview">
+                              <img src={messageAttachmentPreview} alt="preview" />
+                              <button
+                                type="button"
+                                className="chat-attach-remove"
+                                onClick={() => setMessageAttachment(null)}
+                                aria-label="Remove attachment"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          )}
+
+                          <input
+                            type="text"
+                            value={messageInput}
+                            onChange={(e) => setMessageInput(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                            placeholder="Type a message..."
+                            className="w-full px-4 py-3 rounded-xl border border-sky-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+
                         <button
                           onClick={sendMessage}
                           className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white p-3 rounded-lg hover:shadow-lg transition-all"
+                          aria-label="Send"
                         >
                           <Send className="w-5 h-5" />
                         </button>
