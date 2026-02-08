@@ -935,17 +935,15 @@ a:focus-visible {
     linear-gradient(180deg, rgba(255,255,255,0.00), rgba(255,255,255,0.70));
 }
 
-/* Subtle grid/texture overlay */
+/* Texture overlay disabled (removes visible blocks/seams) */
 .app-shell::after{
   content:"";
   position:absolute;
   inset:0;
   z-index:-1;
   pointer-events:none;
-  opacity:0.10;
-  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%27200%27%20height%3D%27200%27%3E%0A%3Cfilter%20id%3D%27n%27%3E%0A%20%20%3CfeTurbulence%20type%3D%27fractalNoise%27%20baseFrequency%3D%27.8%27%20numOctaves%3D%273%27%20stitchTiles%3D%27stitch%27/%3E%0A%3C/filter%3E%0A%3Crect%20width%3D%27200%27%20height%3D%27200%27%20filter%3D%27url%28%23n%29%27%20opacity%3D%27.35%27/%3E%0A%3C/svg%3E");
-  background-size: 220px 220px;
-  mix-blend-mode: overlay;
+  opacity:0;
+  background:none;
 }
 
 /* Landing “chips” variant used in hero (chip chip-soft) */
