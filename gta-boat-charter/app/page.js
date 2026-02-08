@@ -163,6 +163,15 @@ function DatePicker({ selectedDate, onSelectDate, rules }) {
   const days = getDaysInMonth(currentMonth);
   const monthName = currentMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
+  const openSiteSection = (sectionId) => {
+    setView("site-info");
+    // wait for view to render
+    setTimeout(() => {
+      const el = document.getElementById(sectionId);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 60);
+  };
+
   return (
     <div className="bg-white rounded-xl border border-sky-200 p-4">
       <div className="flex items-center justify-between mb-4">
@@ -1691,6 +1700,96 @@ export default function BoatCharterPlatform() {
             </div>
           </div>
         )}
+
+        {/* Site Info */}
+        {view === "site-info" && (
+          <div className="lux-section">
+            <div className="lux-hero lux-hero--compact">
+              <div className="lux-hero__inner">
+                <div>
+                  <div className="lux-eyebrow">Support & Policies</div>
+                  <h1 className="lux-title">Help Center & Legal</h1>
+                  <p className="lux-subtitle">Everything you need in one place — help, terms, privacy, cookies, and contact.</p>
+                </div>
+
+                <div className="lux-hero__actions">
+                  <button onClick={() => setView("browse")} className="btn-secondary">
+                    ← Back to Browse
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="lux-info-grid">
+              <aside className="lux-info-nav">
+                <div className="lux-info-nav__title">On this page</div>
+                <button onClick={() => openSiteSection('help-center')} className="lux-info-nav__item">Help Center</button>
+                <button onClick={() => openSiteSection('terms')} className="lux-info-nav__item">Terms of Service</button>
+                <button onClick={() => openSiteSection('privacy')} className="lux-info-nav__item">Privacy Policy</button>
+                <button onClick={() => openSiteSection('cookies')} className="lux-info-nav__item">Cookie Policy</button>
+                <button onClick={() => openSiteSection('contact')} className="lux-info-nav__item">Contact Us</button>
+              </aside>
+
+              <div className="lux-info-content">
+                <section id="help-center" className="lux-info-card">
+                  <h2>Help Center</h2>
+                  <p>
+                    Need help with bookings, payments, or messaging? Start here.
+                    If something looks off (availability, confirmations, reviews), refresh once and check <strong>My Bookings</strong>.
+                  </p>
+                  <ul>
+                    <li><strong>Booking confirmations:</strong> after payment, your booking should appear in <strong>My Bookings</strong>.</li>
+                    <li><strong>Availability:</strong> booked dates should no longer show as available for that time slot.</li>
+                    <li><strong>Messaging:</strong> open <strong>Messages</strong> to chat with the boat owner before you book.</li>
+                    <li><strong>Reviews:</strong> once submitted, your review is stored and can be displayed on the boat’s listing page (we’ll wire that next).</li>
+                  </ul>
+                </section>
+
+                <section id="terms" className="lux-info-card">
+                  <h2>Terms of Service</h2>
+                  <p>
+                    By using GTA Charter, you agree to provide accurate booking information, respect vessel rules,
+                    and comply with local laws and marina regulations. Payments are handled securely through Stripe.
+                  </p>
+                  <p className="lux-muted">This is placeholder copy for now — you can replace it with your final legal text later.</p>
+                </section>
+
+                <section id="privacy" className="lux-info-card">
+                  <h2>Privacy Policy</h2>
+                  <p>
+                    We only collect what’s needed to run bookings and messaging (account details, booking history, and basic usage events).
+                    We don’t sell your personal data.
+                  </p>
+                  <p className="lux-muted">Placeholder copy — swap with your final privacy policy when ready.</p>
+                </section>
+
+                <section id="cookies" className="lux-info-card">
+                  <h2>Cookie Policy</h2>
+                  <p>
+                    Cookies help keep you signed in and improve performance. You can block cookies in your browser settings,
+                    but some features may not work properly.
+                  </p>
+                  <p className="lux-muted">Placeholder copy — swap with your final cookie policy when ready.</p>
+                </section>
+
+                <section id="contact" className="lux-info-card">
+                  <h2>Contact Us</h2>
+                  <div className="lux-contact">
+                    <div>
+                      <div className="lux-contact__label">Phone</div>
+                      <div className="lux-contact__value">6475683636</div>
+                    </div>
+                    <div>
+                      <div className="lux-contact__label">Hours</div>
+                      <div className="lux-contact__value">Daily 9am – 9pm</div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </div>
+        )}
+
 
         {/* List Boat */}
         {view === "list-boat" && currentUser && currentUserType === "owner" && (
