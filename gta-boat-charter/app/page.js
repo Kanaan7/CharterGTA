@@ -65,6 +65,22 @@ function minutesToHHMM(min) {
   return `${pad2(h)}:${pad2(m)}`;
 }
 
+
+
+function formatPrice(value) {
+  const n = Number(value);
+  const safe = Number.isFinite(n) ? n : 0;
+  try {
+    return new Intl.NumberFormat("en-CA", {
+      style: "currency",
+      currency: "CAD",
+      maximumFractionDigits: safe % 1 === 0 ? 0 : 2,
+    }).format(safe);
+  } catch {
+    // Fallback if Intl is blocked or unavailable
+    return `$${safe.toFixed(2)}`;
+  }
+}
 // Builds slots like "09:00-13:00"
 function buildSlotsFromRules(rules) {
   const startHour = Number(rules?.startHour ?? 9);
