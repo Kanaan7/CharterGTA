@@ -45,6 +45,34 @@ import {
 
 const LOCATIONS = ["All Locations", "Port Credit", "Toronto Harbour", "Hamilton Harbour"];
 
+const HOURS = [
+  { value: 0, label: "12:00 AM" },
+  { value: 1, label: "1:00 AM" },
+  { value: 2, label: "2:00 AM" },
+  { value: 3, label: "3:00 AM" },
+  { value: 4, label: "4:00 AM" },
+  { value: 5, label: "5:00 AM" },
+  { value: 6, label: "6:00 AM" },
+  { value: 7, label: "7:00 AM" },
+  { value: 8, label: "8:00 AM" },
+  { value: 9, label: "9:00 AM" },
+  { value: 10, label: "10:00 AM" },
+  { value: 11, label: "11:00 AM" },
+  { value: 12, label: "12:00 PM" },
+  { value: 13, label: "1:00 PM" },
+  { value: 14, label: "2:00 PM" },
+  { value: 15, label: "3:00 PM" },
+  { value: 16, label: "4:00 PM" },
+  { value: 17, label: "5:00 PM" },
+  { value: 18, label: "6:00 PM" },
+  { value: 19, label: "7:00 PM" },
+  { value: 20, label: "8:00 PM" },
+  { value: 21, label: "9:00 PM" },
+  { value: 22, label: "10:00 PM" },
+  { value: 23, label: "11:00 PM" },
+];
+
+
 function pad2(n) {
   return String(n).padStart(2, "0");
 }
@@ -65,6 +93,22 @@ function minutesToHHMM(min) {
   return `${pad2(h)}:${pad2(m)}`;
 }
 
+
+
+function formatPrice(value) {
+  const n = Number(value);
+  const safe = Number.isFinite(n) ? n : 0;
+  try {
+    return new Intl.NumberFormat("en-CA", {
+      style: "currency",
+      currency: "CAD",
+      maximumFractionDigits: safe % 1 === 0 ? 0 : 2,
+    }).format(safe);
+  } catch {
+    // Fallback if Intl is blocked or unavailable
+    return `$${safe.toFixed(2)}`;
+  }
+}
 // Builds slots like "09:00-13:00"
 function buildSlotsFromRules(rules) {
   const startHour = Number(rules?.startHour ?? 9);
@@ -1044,7 +1088,7 @@ export default function BoatCharterPlatform() {
           <div className="space-y-10">
             {/* Hero */}
             <section className="relative overflow-hidden rounded-3xl border border-white/60 bg-[radial-gradient(1200px_circle_at_20%_20%,rgba(56,189,248,0.22),transparent_55%),radial-gradient(900px_circle_at_80%_30%,rgba(37,99,235,0.18),transparent_55%),linear-gradient(to_bottom,rgba(255,255,255,0.85),rgba(255,255,255,0.55))] shadow-strong">
-              <div className="absolute inset-0 pointer-events-none bg-grid opacity-[0.08]" />
+              <div className="absolute inset-0 pointer-events-none bg-grid-soft" />
               <div className="relative px-6 py-14 md:px-12 md:py-20">
                 <div className="max-w-3xl">
                   <p className="inline-flex items-center gap-2 text-xs font-semibold tracking-wide uppercase text-slate-600">
