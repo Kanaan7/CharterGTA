@@ -163,15 +163,6 @@ function DatePicker({ selectedDate, onSelectDate, rules }) {
   const days = getDaysInMonth(currentMonth);
   const monthName = currentMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
-  const openSiteSection = (sectionId) => {
-    setView("site-info");
-    // wait for view to render
-    setTimeout(() => {
-      const el = document.getElementById(sectionId);
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 60);
-  };
-
   return (
     <div className="bg-white rounded-xl border border-sky-200 p-4">
       <div className="flex items-center justify-between mb-4">
@@ -393,6 +384,21 @@ export default function BoatCharterPlatform() {
   const [editImageFiles, setEditImageFiles] = useState([]); // array of File
 
   const [uploading, setUploading] = useState(false);
+  const [siteInfoTarget, setSiteInfoTarget] = useState("");
+
+  const openSiteSection = (sectionId) => {
+    setSiteInfoTarget(sectionId);
+    setView("site-info");
+  };
+
+  useEffect(() => {
+    if (view !== "site-info" || !siteInfoTarget) return;
+    const t = setTimeout(() => {
+      const el = document.getElementById(siteInfoTarget);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 60);
+    return () => clearTimeout(t);
+  }, [view, siteInfoTarget]);
 
   /* -------- Auth state -------- */
   useEffect(() => {
@@ -1128,7 +1134,7 @@ export default function BoatCharterPlatform() {
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="lux-msg-grid">
                   {filteredBoats.slice(0, 3).map((boat) => (
                     <div
                       key={boat.id}
@@ -1185,7 +1191,7 @@ export default function BoatCharterPlatform() {
             </section>
 
             {/* How it works */}
-            <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <section className="lux-msg-grid">
               {[
                 {
                   title: "Browse & pick a boat",
@@ -1570,8 +1576,8 @@ export default function BoatCharterPlatform() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="md:col-span-1 bg-white rounded-2xl shadow-lg border border-sky-100 overflow-hidden">
+            <div className="lux-msg-grid">
+              <div className="md:col-span-1 card-premium overflow-hidden lux-msg-list">
                 <div className="gradient-blue text-white p-5">
                   <h3 className="font-bold text-lg">Conversations</h3>
                 </div>
@@ -1607,9 +1613,9 @@ export default function BoatCharterPlatform() {
                 </div>
               </div>
 
-              <div className="md:col-span-2 bg-white rounded-2xl shadow-lg border border-sky-100 overflow-hidden">
+              <div className="md:col-span-2 card-premium overflow-hidden lux-msg-chat">
                 {selectedConversation ? (
-                  <div className="flex flex-col h-[600px]">
+                  <div className="flex flex-col h-[620px] md:h-[680px]">
                     <div className="gradient-blue text-white p-5">
                       <h3 className="font-bold text-lg">{selectedConversation.boatName}</h3>
                     </div>
@@ -1676,7 +1682,7 @@ export default function BoatCharterPlatform() {
                           onChange={(e) => setMessageInput(e.target.value)}
                           onKeyDown={(e) => e.key === "Enter" && sendMessage()}
                           placeholder="Type a message..."
-                          className="flex-1 px-4 py-3 border border-sky-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="flex-1 px-4 py-3 rounded-xl border border-sky-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                         <button
                           onClick={sendMessage}
@@ -2078,7 +2084,7 @@ export default function BoatCharterPlatform() {
                 <span className="font-medium text-slate-800">Email:</span> support@gtacharter.ca
               </div>
               <div className="text-sm text-slate-600">
-                <span className="font-medium text-slate-800">Phone:</span> (647) 000-0000
+                <span className="font-medium text-slate-800">Phone:</span> 6475683636
               </div>
             </div>
 
@@ -2092,17 +2098,17 @@ export default function BoatCharterPlatform() {
 
             <div className="space-y-3">
               <div className="text-sm font-extrabold text-slate-950">Support</div>
-              <a className="footer-link" href="#">Help Center</a>
-              <a className="footer-link" href="#">Safety</a>
-              <a className="footer-link" href="#">Cancellation Policy</a>
-              <a className="footer-link" href="#">Accessibility</a>
+              <button type="button" onClick={() => openSiteSection("help-center")} className="footer-link">Help Center</button>
+              <button type="button" onClick={() => openSiteSection("help-center")} className="footer-link">Safety</button>
+              <button type="button" onClick={() => openSiteSection("help-center")} className="footer-link">Cancellation Policy</button>
+              <button type="button" onClick={() => openSiteSection("help-center")} className="footer-link">Accessibility</button>
             </div>
 
             <div className="space-y-3">
               <div className="text-sm font-extrabold text-slate-950">Legal</div>
-              <a className="footer-link" href="#">Terms</a>
-              <a className="footer-link" href="#">Privacy</a>
-              <a className="footer-link" href="#">Cookies</a>
+              <button type="button" onClick={() => openSiteSection("terms")} className="footer-link">Terms</button>
+              <button type="button" onClick={() => openSiteSection("privacy")} className="footer-link">Privacy</button>
+              <button type="button" onClick={() => openSiteSection("cookies")} className="footer-link">Cookies</button>
 
               <div className="pt-4">
                 <div className="text-xs text-slate-500">
