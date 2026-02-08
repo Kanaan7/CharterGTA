@@ -329,7 +329,7 @@ function AuthModal({ onClose, onGoogle, onEmailAuth }) {
 
 /* --------------------------- Main Page --------------------------- */
 export default function BoatCharterPlatform() {
-  const [view, setView] = useState("browse");
+  const [view, setView] = useState("landing");
 
   const [boats, setBoats] = useState([]);
   const [selectedBoat, setSelectedBoat] = useState(null);
@@ -935,7 +935,7 @@ export default function BoatCharterPlatform() {
       <header className="header-glass animate-slideDown">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 cursor-pointer" onClick={() => setView("browse")}>
+            <div className="flex items-center gap-3 cursor-pointer" onClick={() => setView("landing")}>
               <div className="gradient-blue rounded-2xl shadow-blue p-2.5 hover-scale">
                 <Anchor className="w-6 h-6 text-white" />
               </div>
@@ -1009,7 +1009,204 @@ export default function BoatCharterPlatform() {
 
       <main className="max-w-7xl mx-auto px-4 py-6 pb-24 md:pb-6">
         {/* Browse */}
-        {view === "browse" && (
+        
+        {/* Landing */}
+        {view === "landing" && (
+          <div className="space-y-10">
+            {/* Hero */}
+            <section className="relative overflow-hidden rounded-3xl border border-white/60 bg-[radial-gradient(1200px_circle_at_20%_20%,rgba(56,189,248,0.22),transparent_55%),radial-gradient(900px_circle_at_80%_30%,rgba(37,99,235,0.18),transparent_55%),linear-gradient(to_bottom,rgba(255,255,255,0.85),rgba(255,255,255,0.55))] shadow-strong">
+              <div className="absolute inset-0 pointer-events-none bg-grid opacity-[0.08]" />
+              <div className="relative px-6 py-14 md:px-12 md:py-20">
+                <div className="max-w-3xl">
+                  <p className="inline-flex items-center gap-2 text-xs font-semibold tracking-wide uppercase text-slate-600">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 shadow" />
+                    Trusted local charter marketplace
+                  </p>
+
+                  <h2 className="mt-4 text-4xl md:text-6xl font-extrabold tracking-tight text-slate-950">
+                    Discover Toronto&apos;s{" "}
+                    <span className="bg-gradient-to-r from-blue-700 via-cyan-600 to-emerald-500 bg-clip-text text-transparent">
+                      Beautiful Waters
+                    </span>
+                  </h2>
+
+                  <p className="mt-4 text-base md:text-lg text-slate-600 leading-relaxed">
+                    Rent premium boats from verified local owners. Book in minutes, message owners instantly, and
+                    explore Lake Ontario like you belong on it.
+                  </p>
+
+                  <div className="mt-6 flex flex-wrap gap-2">
+                    {LOCATIONS.filter((l) => l !== "All Locations").map((loc) => (
+                      <button
+                        key={loc}
+                        onClick={() => {
+                          setLocationFilter(loc);
+                          setView("browse");
+                        }}
+                        className="chip chip-soft"
+                      >
+                        <MapPin className="w-4 h-4" />
+                        {loc.replace("Harbour", "")}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="mt-8 flex flex-col sm:flex-row gap-3">
+                    <button
+                      onClick={() => setView("browse")}
+                      className="btn btn-primary btn-lg"
+                    >
+                      Browse Charters
+                      <span className="ml-2">→</span>
+                    </button>
+
+                    {currentUserType === "owner" ? (
+                      <button onClick={() => setView("list-boat")} className="btn btn-ghost btn-lg">
+                        List Your Boat
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => (currentUser ? switchAccountType("owner") : setShowAuthModal(true))}
+                        className="btn btn-ghost btn-lg"
+                      >
+                        Become an Owner
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[
+                      { k: "Instant booking", v: "Secure checkout" },
+                      { k: "Live chat", v: "Message owners" },
+                      { k: "Transparent pricing", v: "No surprises" },
+                      { k: "Verified owners", v: "Trusted marketplace" },
+                    ].map((x) => (
+                      <div key={x.k} className="rounded-2xl bg-white/70 border border-white/60 p-4 shadow-soft">
+                        <div className="text-sm font-semibold text-slate-900">{x.k}</div>
+                        <div className="text-xs text-slate-600 mt-1">{x.v}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Featured */}
+            <section className="space-y-4">
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <h3 className="text-2xl md:text-3xl font-extrabold tracking-tight text-slate-950">Featured Charters</h3>
+                  <p className="text-slate-600 mt-1">Hand-picked listings to get you on the water fast.</p>
+                </div>
+                <button onClick={() => setView("browse")} className="btn btn-ghost">
+                  View all
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              {filteredBoats.length === 0 ? (
+                <div className="card p-10 text-center">
+                  <Anchor className="w-14 h-14 text-slate-300 mx-auto mb-4" />
+                  <div className="text-lg font-bold text-slate-900">No boats yet</div>
+                  <div className="text-slate-600 mt-1">Switch to Owner mode and list one to test the full flow.</div>
+                  <div className="mt-5">
+                    <button
+                      onClick={() => (currentUser ? switchAccountType("owner") : setShowAuthModal(true))}
+                      className="btn btn-primary"
+                    >
+                      List a boat
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {filteredBoats.slice(0, 3).map((boat) => (
+                    <div
+                      key={boat.id}
+                      onClick={() => {
+                        setSelectedBoat(boat);
+                        setSelectedDate("");
+                        setSelectedSlot("");
+                        setView("boat-detail");
+                      }}
+                      className="card overflow-hidden group cursor-pointer"
+                    >
+                      <div className="relative h-52 overflow-hidden">
+                        <img
+                          src={
+                            boat.imageUrl ||
+                            "https://images.unsplash.com/photo-1567899378494-47b22a2ae96a?w=1200&q=80"
+                          }
+                          alt={boat.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/10 to-transparent" />
+                        <div className="absolute top-4 left-4 inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-slate-800 shadow-soft">
+                          <MapPin className="w-4 h-4" />
+                          {boat.location}
+                        </div>
+                        <div className="absolute top-4 right-4 rounded-full bg-white/90 px-3 py-1 text-xs font-black text-slate-900 shadow-soft">
+                          ${boat.price}/4hrs
+                        </div>
+                        <div className="absolute bottom-4 left-4 right-4">
+                          <div className="text-white text-xl font-extrabold">{boat.name}</div>
+                          <div className="mt-2 flex items-center justify-between text-white/90 text-sm">
+                            <span className="inline-flex items-center gap-1">
+                              <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                              {boat.rating || 0}
+                              <span className="text-white/70">({boat.reviews || 0})</span>
+                            </span>
+                            <span className="inline-flex items-center gap-1">
+                              <Users className="w-4 h-4" /> Up to {boat.capacity}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-5">
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm text-slate-600">{boat.type}</div>
+                          <button className="btn btn-primary btn-sm">View</button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* How it works */}
+            <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {[
+                {
+                  title: "Browse & pick a boat",
+                  desc: "Filter by harbour, compare options, and open a listing for details.",
+                  icon: <Anchor className="w-5 h-5" />,
+                },
+                {
+                  title: "Choose date & time",
+                  desc: "Select an available slot. Once paid, we lock that time automatically.",
+                  icon: <Calendar className="w-5 h-5" />,
+                },
+                {
+                  title: "Confirm & message owner",
+                  desc: "Instant confirmation, and chat is built-in for quick coordination.",
+                  icon: <MessageCircle className="w-5 h-5" />,
+                },
+              ].map((s, i) => (
+                <div key={i} className="card p-6">
+                  <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white flex items-center justify-center shadow-soft">
+                    {s.icon}
+                  </div>
+                  <div className="mt-4 text-lg font-extrabold text-slate-950">{s.title}</div>
+                  <div className="mt-1 text-slate-600">{s.desc}</div>
+                </div>
+              ))}
+            </section>
+          </div>
+        )}
+
+{view === "browse" && (
           <div>
             <div className="mb-6">
               <h2 className="text-3xl font-bold text-slate-900 mb-2">Discover Your Perfect Charter</h2>
@@ -1760,6 +1957,64 @@ export default function BoatCharterPlatform() {
           </div>
         )}
       </main>
+      {/* Footer */}
+      <footer className="mt-16 border-t border-white/60 bg-white/60 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto px-4 py-12">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="bg-gradient-to-br from-blue-600 to-cyan-600 p-2 rounded-2xl shadow-soft">
+                  <Anchor className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <div className="text-lg font-extrabold text-slate-950">GTA Charter</div>
+                  <div className="text-xs text-slate-600">Lake Ontario Adventures</div>
+                </div>
+              </div>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                A premium marketplace connecting passengers with trusted local charter owners across the GTA.
+              </p>
+              <div className="text-sm text-slate-700 font-semibold">Contact</div>
+              <div className="text-sm text-slate-600">
+                <span className="font-medium text-slate-800">Email:</span> support@gtacharter.ca
+              </div>
+              <div className="text-sm text-slate-600">
+                <span className="font-medium text-slate-800">Phone:</span> (647) 000-0000
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="text-sm font-extrabold text-slate-950">Explore</div>
+              <button onClick={() => setView("browse")} className="footer-link">Browse Charters</button>
+              <button onClick={() => setView("messages")} className="footer-link">Messages</button>
+              <button onClick={() => setView("bookings")} className="footer-link">My Bookings</button>
+              <button onClick={() => setView("landing")} className="footer-link">Home</button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="text-sm font-extrabold text-slate-950">Support</div>
+              <a className="footer-link" href="#">Help Center</a>
+              <a className="footer-link" href="#">Safety</a>
+              <a className="footer-link" href="#">Cancellation Policy</a>
+              <a className="footer-link" href="#">Accessibility</a>
+            </div>
+
+            <div className="space-y-3">
+              <div className="text-sm font-extrabold text-slate-950">Legal</div>
+              <a className="footer-link" href="#">Terms</a>
+              <a className="footer-link" href="#">Privacy</a>
+              <a className="footer-link" href="#">Cookies</a>
+
+              <div className="pt-4">
+                <div className="text-xs text-slate-500">
+                  © {new Date().getFullYear()} GTA Charter. All rights reserved.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </footer>
+
     </div>
   );
 }
