@@ -348,23 +348,6 @@ export default function BoatCharterPlatform() {
 
   // messaging
   const [conversations, setConversations] = useState([]);
-
-  const [convSearch, setConvSearch] = useState("");
-
-  const filteredConversations = useMemo(() => {
-    const q = convSearch.trim().toLowerCase();
-    if (!q) return conversations;
-
-    return conversations.filter((c) => {
-      const boat = (c.boatName || "").toLowerCase();
-      const last = (c.lastMessage || "").toLowerCase();
-
-      const otherId = (c.participantIds || []).find((id) => id !== currentUser?.uid);
-      const otherName = (c.participantNames?.[otherId] || "").toLowerCase();
-
-      return boat.includes(q) || otherName.includes(q) || last.includes(q);
-    });
-  }, [conversations, convSearch, currentUser]);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [messageInput, setMessageInput] = useState("");
@@ -416,6 +399,20 @@ export default function BoatCharterPlatform() {
     }, 60);
     return () => clearTimeout(t);
   }, [view, siteInfoTarget]);
+
+
+  /* -------- Header: subtle scrolled state -------- */
+  useEffect(() => {
+    const headerScrollHandler = () => {
+      const header = document.querySelector(".header-glass");
+      if (!header) return;
+      if (window.scrollY > 8) header.classList.add("scrolled");
+      else header.classList.remove("scrolled");
+    };
+    headerScrollHandler();
+    window.addEventListener("scroll", headerScrollHandler, { passive: true });
+    return () => window.removeEventListener("scroll", headerScrollHandler);
+  }, []);
 
   /* -------- Auth state -------- */
   useEffect(() => {
@@ -1306,12 +1303,7 @@ export default function BoatCharterPlatform() {
                           <span className="text-sm">Up to {boat.capacity}</span>
                         </div>
                       </div>
-                      <div className="text-sm text-slate-600">{boat.type}</div>
-                      <div className="mt-2 flex items-center justify-between">
-                        <div className="text-sm text-slate-600">Price</div>
-                        <div className="text-slate-900 font-semibold">From ${boat.price} CAD <span className="text-slate-500 font-normal">/ 4 hours</span></div>
-                      </div>
-                      <div className="mt-2 mb-3 text-xs text-slate-500">Taxes and fuel (if applicable) shown at checkout.</div>
+                      <div className="text-sm text-slate-600 mb-3">{boat.type}</div>
                       <div className="pt-4 border-t-2 border-slate-100">
                         <button className="w-full btn-primary">
                           View Details
@@ -1566,195 +1558,156 @@ export default function BoatCharterPlatform() {
                       }}
                       className="flex-1 btn-primary py-4 text-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:transform-none"
                       disabled={!selectedDate || !selectedSlot}
-                    ></button>
+                    >
                       {currentUser ? `Book Now - $${selectedBoat.price}` : "Sign In to Book"}
-         
-        {/* Messages */}
-        {view === "messages" && currentUser && (
-          <div className="lux-page">
-            <div className="lux-container">
-              <div className="lux-page-header">
-                <div>
-                  <h2 className="lux-h2">Messages</h2>
-                  <p className="lux-subtitle">Chat with owners and keep trip details in one place.</p>
+                    </button>
+
+                    <button
+                      onClick={() => startConversation(selectedBoat)}
+                      className="px-6 py-4 border-2 border-blue-600 text-blue-600 rounded-xl font-bold hover:bg-blue-50 hover:border-blue-700 transition-all flex items-center justify-center gap-2 active:scale-95"
+                    >
+                      <MessageCircle className="w-5 h-5" />
+                      Message Owner
+                    </button>
+                  </div>
                 </div>
-
-                <button
-                  onClick={() => setView("browse")}
-                  className="lux-btn lux-btn-ghost"
-                  type="button"
-                >
-                  ← Back to Browse
-                </button>
-              </div>
-
-              <div className="lux-messages-grid">
-                {/* Left: Conversations */}
-                <aside className="lux-card lux-card-pad lux-conv-panel">
-                  <div className="lux-conv-top">
-                    <div className="lux-h3">Conversations</div>
-
-                    <div className="lux-search">
-                      <input
-                        className="lux-input"
-                        placeholder="Search by boat or name…"
-                        value={convSearch}
-                        onChange={(e) => setConvSearch(e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="lux-conv-list">
-                    {filteredConversations.length === 0 ? (
-                      <div className="lux-empty">
-                        <div className="lux-empty-icon">💬</div>
-                        <div className="lux-empty-title">No conversations yet</div>
-                        <div className="lux-empty-sub">Message an owner from any listing to start a chat.</div>
-                      </div>
-                    ) : (
-                      filteredConversations.map((conv) => {
-                        const otherId = (conv.participantIds || []).find((id) => id !== currentUser.uid);
-                        const otherName = conv.participantNames?.[otherId] || "User";
-                        const isActive = selectedConversation?.id === conv.id;
-
-                        return (
-                          <button
-                            key={conv.id}
-                            type="button"
-                            onClick={() => setSelectedConversation(conv)}
-                            className={`lux-conv-item ${isActive ? "is-active" : ""}`}
-                          >
-                            <div className="lux-conv-avatar">
-                              {(otherName?.[0] || "U").toUpperCase()}
-                            </div>
-
-                            <div className="lux-conv-meta">
-                              <div className="lux-conv-row">
-                                <div className="lux-conv-boat">{conv.boatName || "Boat"}</div>
-                                {conv.lastMessageAt?.toDate?.() ? (
-                                  <div className="lux-conv-time">
-                                    {conv.lastMessageAt.toDate().toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                                  </div>
-                                ) : null}
-                              </div>
-
-                              <div className="lux-conv-sub">
-                                <span className="lux-conv-with">with {otherName}</span>
-                                {conv.lastMessage ? (
-                                  <span className="lux-conv-snippet">• {conv.lastMessage}</span>
-                                ) : (
-                                  <span className="lux-conv-snippet">• No messages yet</span>
-                                )}
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })
-                    )}
-                  </div>
-                </aside>
-
-                {/* Right: Chat */}
-                <section className="lux-card lux-chat-panel">
-                  {selectedConversation ? (
-                    <div className="lux-chat">
-                      <div className="lux-chat-header">
-                        <div className="lux-chat-title">
-                          <div className="lux-h3">{selectedConversation.boatName || "Boat"}</div>
-                          <div className="lux-chat-sub">
-                            {(() => {
-                              const otherId = (selectedConversation.participantIds || []).find((id) => id !== currentUser.uid);
-                              const otherName = selectedConversation.participantNames?.[otherId] || "User";
-                              return `with ${otherName}`;
-                            })()}
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          className="lux-btn lux-btn-ghost"
-                          onClick={() => {
-                            setSelectedConversation(null);
-                          }}
-                        >
-                          Close
-                        </button>
-                      </div>
-
-                      <div className="lux-chat-body">
-                        {messages.length === 0 ? (
-                          <div className="lux-empty">
-                            <div className="lux-empty-icon">🫧</div>
-                            <div className="lux-empty-title">Start the conversation</div>
-                            <div className="lux-empty-sub">Ask about pick-up location, amenities, or timing.</div>
-                          </div>
-                        ) : (
-                          <div className="lux-chat-thread">
-                            {messages.map((msg) => {
-                              const isMine = msg.senderId === currentUser.uid;
-
-                              return (
-                                <div key={msg.id} className={`lux-bubble-row ${isMine ? "mine" : "theirs"}`}>
-                                  {!isMine && (
-                                    <div className="lux-bubble-avatar">
-                                      {(msg.senderName?.[0] || "U").toUpperCase()}
-                                    </div>
-                                  )}
-
-                                  <div className={`lux-bubble ${isMine ? "mine" : "theirs"}`}>
-                                    {!isMine && <div className="lux-bubble-name">{msg.senderName || "User"}</div>}
-                                    <div className="lux-bubble-text">{msg.text}</div>
-
-                                    <div className="lux-bubble-time">
-                                      {msg.createdAt
-                                        ? msg.createdAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
-                                        : ""}
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="lux-chat-compose">
-                        <input
-                          type="text"
-                          value={messageInput}
-                          onChange={(e) => setMessageInput(e.target.value)}
-                          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                          placeholder="Type a message…"
-                          className="lux-input lux-compose-input"
-                        />
-                        <button
-                          type="button"
-                          onClick={sendMessage}
-                          className="lux-btn lux-btn-primary lux-compose-send"
-                          title="Send"
-                        >
-                          <Send className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="lux-chat-empty">
-                      <div className="lux-empty">
-                        <div className="lux-empty-icon">💬</div>
-                        <div className="lux-empty-title">Select a conversation</div>
-                        <div className="lux-empty-sub">Pick one on the left to view messages.</div>
-                      </div>
-                    </div>
-                  )}
-                </section>
               </div>
             </div>
           </div>
         )}
 
+        {/* Messages */}
+        {view === "messages" && currentUser && (
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-3xl font-bold text-slate-900">Messages</h2>
+
+              <button
+                onClick={() => setView("browse")}
+                className="px-4 py-2.5 btn-secondary text-sm"
+              >
+                ← Back to Browse
+              </button>
+            </div>
+
+            <div className="lux-msg-grid">
+              <div className="md:col-span-1 card-premium overflow-hidden lux-msg-list">
+                <div className="gradient-blue text-white p-5">
+                  <h3 className="font-bold text-lg">Conversations</h3>
+                </div>
+
+                <div className="divide-y divide-sky-100 max-h-[600px] overflow-y-auto">
+                  {conversations.length === 0 ? (
+                    <div className="p-8 text-center">
+                      <MessageCircle className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                      <p className="text-slate-500 text-sm">No conversations yet</p>
+                    </div>
+                  ) : (
+                    conversations.map((conv) => {
+                      const otherId = (conv.participantIds || []).find((id) => id !== currentUser.uid);
+                      const otherName = conv.participantNames?.[otherId] || "User";
+
+                      return (
+                        <button
+                          key={conv.id}
+                          onClick={() => setSelectedConversation(conv)}
+                          className={`w-full text-left p-4 hover:bg-blue-50 transition-all ${
+                            selectedConversation?.id === conv.id ? "bg-blue-50 border-l-4 border-blue-600" : ""
+                          }`}
+                        >
+                          <div className="font-semibold text-slate-900 mb-1">{conv.boatName}</div>
+                          <div className="text-sm text-slate-600">with {otherName}</div>
+                          {conv.lastMessage ? (
+                            <div className="text-xs text-slate-500 mt-1 truncate">{conv.lastMessage}</div>
+                          ) : null}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
               </div>
+
+              <div className="md:col-span-2 card-premium overflow-hidden lux-msg-chat">
+                {selectedConversation ? (
+                  <div className="flex flex-col h-[620px] md:h-[680px]">
+                    <div className="gradient-blue text-white p-5">
+                      <h3 className="font-bold text-lg">{selectedConversation.boatName}</h3>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                      {messages.length === 0 ? (
+                        <div className="text-center py-12">
+                          <MessageCircle className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                          <p className="text-slate-500">No messages yet. Start the conversation!</p>
+                        </div>
+                      ) : (
+                        messages.map((msg) => {
+                          const isMine = msg.senderId === currentUser.uid;
+
+                          return (
+                            <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+                              <div
+                                className={`max-w-[80%] md:max-w-[60%] flex items-end gap-2 ${
+                                  isMine ? "flex-row-reverse" : ""
+                                }`}
+                              >
+                                {!isMine && (
+                                  <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 text-xs font-bold">
+                                    {msg.senderName?.[0]?.toUpperCase() || "U"}
+                                  </div>
+                                )}
+
+                                <div
+                                  className={`rounded-2xl px-4 py-3 shadow-sm ${
+                                    isMine
+                                      ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white"
+                                      : "bg-white border border-slate-200 text-slate-900"
+                                  }`}
+                                >
+                                  {!isMine && (
+                                    <div className="text-xs font-semibold text-slate-500 mb-1">
+                                      {msg.senderName || "User"}
+                                    </div>
+                                  )}
+
+                                  <div className="whitespace-pre-wrap break-words">{msg.text}</div>
+
+                                  <div className={`text-[11px] mt-1 ${isMine ? "text-white/70" : "text-slate-400"}`}>
+                                    {msg.createdAt
+                                      ? msg.createdAt.toLocaleTimeString("en-US", {
+                                          hour: "numeric",
+                                          minute: "2-digit",
+                                        })
+                                      : ""}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    <div className="p-4 border-t border-sky-100">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={messageInput}
+                          onChange={(e) => setMessageInput(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                          placeholder="Type a message..."
+                          className="flex-1 px-4 py-3 rounded-xl border border-sky-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                          onClick={sendMessage}
+                          className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white p-3 rounded-lg hover:shadow-lg transition-all"
+                        >
+                          <Send className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                 : (
+                ) : (
                   <div className="h-[600px] flex items-center justify-center">
                     <div className="text-center">
                       <MessageCircle className="w-16 h-16 text-slate-300 mx-auto mb-4" />
@@ -1762,7 +1715,7 @@ export default function BoatCharterPlatform() {
                       <p className="text-slate-500">Choose a conversation from the left</p>
                     </div>
                   </div>
-                )
+                )}
               </div>
             </div>
           </div>
@@ -2183,4 +2136,4 @@ export default function BoatCharterPlatform() {
 
     </div>
   );
-} 
+}

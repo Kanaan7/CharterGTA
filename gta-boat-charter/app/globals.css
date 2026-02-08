@@ -830,3 +830,100 @@ a:focus-visible {
 }
 .lux-footer-cols{ gap: 18px; }
 .lux-footer-links{ gap: 10px; }
+
+
+/* =========================================================
+   Compatibility aliases + missing helpers used in page.js
+   (keeps page.js clean and your design system consistent)
+   ========================================================= */
+
+@layer components {
+  /* Base button + sizes (page.js uses: btn btn-primary btn-lg / btn-sm) */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 font-semibold transition-all;
+    border-radius: var(--radius-md);
+    line-height: 1;
+  }
+
+  .btn-lg { @apply px-6 py-3.5 text-base; }
+  .btn-sm { @apply px-4 py-2.5 text-sm; }
+
+  /* Card alias (page.js uses .card in a few spots) */
+  .card {
+    @apply bg-white border;
+    border-color: rgb(var(--border-light));
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* Soft/strong shadows (page.js uses shadow-soft/shadow-strong) */
+  .shadow-soft { box-shadow: var(--shadow-sm); }
+  .shadow-strong { box-shadow: var(--shadow-lg); }
+
+  /* Brand icon badge in header */
+  .gradient-blue {
+    background: linear-gradient(135deg, rgb(var(--brand-blue)), rgb(var(--brand-cyan)));
+  }
+  .shadow-blue { box-shadow: var(--shadow-brand); }
+
+  /* Hover helpers */
+  .hover-scale { transition: transform var(--transition-fast); }
+  .hover-scale:hover { transform: translateY(-1px) scale(1.02); }
+
+  /* App shell baseline */
+  .app-shell { min-height: 100vh; }
+
+  /* Landing “chips” variant used in hero (chip chip-soft) */
+  .chip-soft {
+    @apply chip;
+    background: rgba(255, 255, 255, 0.70);
+    border-color: rgba(var(--brand-sky), 0.18);
+  }
+
+  /* Layout grid alias (page.js uses lux-msg-grid, file had lux-messages-grid) */
+  .lux-msg-grid {
+    @apply grid gap-6;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 768px) {
+    .lux-msg-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+
+  /* Browse cards (page.js uses image-overlay + stagger-animation) */
+  .image-overlay::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, transparent 45%, rgba(0,0,0,0.35));
+    pointer-events: none;
+  }
+
+  .stagger-animation > * {
+    animation: slideUp 0.35s cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+  .stagger-animation > *:nth-child(1) { animation-delay: 0ms; }
+  .stagger-animation > *:nth-child(2) { animation-delay: 40ms; }
+  .stagger-animation > *:nth-child(3) { animation-delay: 80ms; }
+  .stagger-animation > *:nth-child(4) { animation-delay: 120ms; }
+  .stagger-animation > *:nth-child(5) { animation-delay: 160ms; }
+  .stagger-animation > *:nth-child(6) { animation-delay: 200ms; }
+
+  /* Info pages (page.js uses lux-info-card, lux-muted, lux-contact*) */
+  .lux-info-card {
+    @apply bg-white border p-6 md:p-8;
+    border-color: rgb(var(--border-light));
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-md);
+  }
+  .lux-muted { color: rgb(var(--text-muted)); }
+
+  .lux-contact {
+    @apply grid gap-4 md:gap-6;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 768px) {
+    .lux-contact { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  .lux-contact__label { @apply text-xs font-semibold uppercase tracking-wide; color: rgb(var(--text-muted)); }
+  .lux-contact__value { @apply mt-1 text-base font-semibold; color: rgb(var(--text-primary)); }
+}
