@@ -1175,7 +1175,7 @@ export default function BoatCharterPlatform() {
                           {boat.location}
                         </div>
                         <div className="absolute top-4 right-4 rounded-full bg-white/90 px-3 py-1 text-xs font-black text-slate-900 shadow-soft">
-                          ${boat.price}/4hrs
+                          {formatPrice(boat.price)}<span className="text-slate-600 font-semibold">/4hrs</span>
                         </div>
                         <div className="absolute bottom-4 left-4 right-4">
                           <div className="text-white text-xl font-extrabold">{boat.name}</div>
@@ -1282,8 +1282,8 @@ export default function BoatCharterPlatform() {
                         alt={boat.name}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
                       />
-                      <div className="absolute top-4 right-4 glass px-4 py-2 rounded-full font-bold bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent shadow-strong">
-                        ${boat.price}/4hrs
+                      <div className="absolute top-4 right-4 rounded-full bg-white/90 px-3 py-1 text-xs font-black text-slate-900 shadow-soft border border-white/60">
+                        {formatPrice(boat.price)}<span className="text-slate-600 font-semibold">/4hrs</span>
                       </div>
                     </div>
                     <div className="p-5">
@@ -1814,103 +1814,195 @@ export default function BoatCharterPlatform() {
         {/* List Boat */}
         {view === "list-boat" && currentUser && currentUserType === "owner" && (
           <div>
-            <h2 className="text-3xl font-bold text-slate-900 mb-6">List Your Boat</h2>
+            <div className="flex items-end justify-between gap-4 mb-6">
+              <div>
+                <h2 className="text-3xl font-extrabold tracking-tight text-slate-950">List Your Boat</h2>
+                <p className="text-slate-600 mt-1">Create a premium listing that looks great on mobile and desktop.</p>
+              </div>
+              <button onClick={() => setView("browse")} className="btn btn-ghost">
+                <ChevronLeft className="w-4 h-4" /> Back
+              </button>
+            </div>
 
-            <div className="bg-white rounded-3xl p-8 md:p-10 shadow-strong border-2 border-slate-200 space-y-5 animate-fadeIn">
-              <input
-                className="w-full px-4 py-3 border border-sky-200 rounded-lg"
-                placeholder="Boat Name"
-                value={newBoat.name}
-                onChange={(e) => setNewBoat({ ...newBoat, name: e.target.value })}
-              />
-
-              <select
-                className="w-full px-4 py-3 border border-sky-200 rounded-lg bg-white"
-                value={newBoat.location}
-                onChange={(e) => setNewBoat({ ...newBoat, location: e.target.value })}
-              >
-                <option value="Port Credit">Port Credit</option>
-                <option value="Toronto Harbour">Toronto Harbour</option>
-                <option value="Hamilton Harbour">Hamilton Harbour</option>
-              </select>
-
-              <textarea
-                className="w-full px-4 py-3 border border-sky-200 rounded-lg"
-                rows={4}
-                placeholder="Description"
-                value={newBoat.description}
-                onChange={(e) => setNewBoat({ ...newBoat, description: e.target.value })}
-              />
-
-              <input
-                className="w-full px-4 py-3 border border-sky-200 rounded-lg"
-                placeholder="Amenities (comma-separated)"
-                value={newBoat.amenities}
-                onChange={(e) => setNewBoat({ ...newBoat, amenities: e.target.value })}
-              />
-
-              <input
-                className="w-full px-4 py-3 border border-sky-200 rounded-lg"
-                placeholder="Cover Image URL (optional)"
-                value={newBoat.imageUrl}
-                onChange={(e) => setNewBoat({ ...newBoat, imageUrl: e.target.value })}
-              />
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-sm font-medium text-slate-700">Start Hour</label>
+            <div className="card p-7 md:p-10 animate-fadeIn">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <label className="label">Boat name</label>
                   <input
-                    type="number"
-                    min="0"
-                    max="23"
-                    className="w-full px-4 py-3 border border-sky-200 rounded-lg"
-                    value={newBoat.startHour}
-                    onChange={(e) => setNewBoat({ ...newBoat, startHour: Number(e.target.value) })}
+                    className="input"
+                    placeholder="e.g., Sea Ray 440 Flybridge"
+                    value={newBoat.name}
+                    onChange={(e) => setNewBoat({ ...newBoat, name: e.target.value })}
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-slate-700">End Hour</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="23"
-                    className="w-full px-4 py-3 border border-sky-200 rounded-lg"
-                    value={newBoat.endHour}
-                    onChange={(e) => setNewBoat({ ...newBoat, endHour: Number(e.target.value) })}
-                  />
+                  <label className="label">Harbour</label>
+                  <select
+                    className="select"
+                    value={newBoat.location}
+                    onChange={(e) => setNewBoat({ ...newBoat, location: e.target.value })}
+                  >
+                    <option value="Port Credit">Port Credit</option>
+                    <option value="Toronto Harbour">Toronto Harbour</option>
+                    <option value="Hamilton Harbour">Hamilton Harbour</option>
+                  </select>
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-slate-700">Slot Length (hrs)</label>
+                  <label className="label">Boat type</label>
+                  <select
+                    className="select"
+                    value={newBoat.type}
+                    onChange={(e) => setNewBoat({ ...newBoat, type: e.target.value })}
+                  >
+                    <option value="Sailboat">Sailboat</option>
+                    <option value="Motor Yacht">Motor Yacht</option>
+                    <option value="Speedboat">Speedboat</option>
+                    <option value="Pontoon">Pontoon</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="label">Capacity</label>
                   <input
                     type="number"
                     min="1"
-                    className="w-full px-4 py-3 border border-sky-200 rounded-lg"
-                    value={newBoat.slotLength}
-                    onChange={(e) => setNewBoat({ ...newBoat, slotLength: Number(e.target.value) })}
+                    className="input"
+                    value={newBoat.capacity}
+                    onChange={(e) => setNewBoat({ ...newBoat, capacity: Number(e.target.value) })}
                   />
+                  <p className="help">Max guests allowed on this charter.</p>
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-slate-700">Min Hours</label>
+                  <label className="label">Price (per 4 hours)</label>
+                  <div className="relative">
+                    <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-500 font-semibold">
+                      $
+                    </div>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      className="input pl-8"
+                      value={newBoat.price}
+                      onChange={(e) => setNewBoat({ ...newBoat, price: Number(e.target.value) })}
+                      placeholder="e.g., 850"
+                    />
+                  </div>
+                  <p className="help">Displayed on the browse card as “$X / 4hrs”.</p>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="label">Description</label>
+                  <textarea
+                    className="textarea"
+                    rows={5}
+                    placeholder="What makes this charter special? Mention seating, sound system, amenities, and rules."
+                    value={newBoat.description}
+                    onChange={(e) => setNewBoat({ ...newBoat, description: e.target.value })}
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="label">Amenities</label>
                   <input
-                    type="number"
-                    min="1"
-                    className="w-full px-4 py-3 border border-sky-200 rounded-lg"
-                    value={newBoat.minHours}
-                    onChange={(e) => setNewBoat({ ...newBoat, minHours: Number(e.target.value) })}
+                    className="input"
+                    placeholder="e.g., Bluetooth sound system, cooler, bathroom, floaties"
+                    value={newBoat.amenities}
+                    onChange={(e) => setNewBoat({ ...newBoat, amenities: e.target.value })}
+                  />
+                  <p className="help">Separate with commas — these can be shown as chips later.</p>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="label">Cover image URL (optional)</label>
+                  <input
+                    className="input"
+                    placeholder="Paste an image URL (used if you don’t upload photos)"
+                    value={newBoat.imageUrl}
+                    onChange={(e) => setNewBoat({ ...newBoat, imageUrl: e.target.value })}
                   />
                 </div>
               </div>
 
+              <div className="divider my-7" />
+
+              <div className="grid lg:grid-cols-3 gap-5">
+                <div className="lg:col-span-1">
+                  <div className="text-sm font-extrabold text-slate-900">Availability window</div>
+                  <div className="text-sm text-slate-600 mt-1">
+                    Defines when the boat can be booked. Guests choose slots within this time range.
+                  </div>
+                </div>
+
+                <div className="lg:col-span-2 grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="label">Start time</label>
+                    <select
+                      className="select"
+                      value={newBoat.startHour}
+                      onChange={(e) => setNewBoat({ ...newBoat, startHour: Number(e.target.value) })}
+                    >
+                      {HOURS.map((h) => (
+                        <option key={h.value} value={h.value}>
+                          {h.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="label">End time</label>
+                    <select
+                      className="select"
+                      value={newBoat.endHour}
+                      onChange={(e) => setNewBoat({ ...newBoat, endHour: Number(e.target.value) })}
+                    >
+                      {HOURS.map((h) => (
+                        <option key={h.value} value={h.value}>
+                          {h.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="label">Slot length</label>
+                    <input
+                      type="number"
+                      min="1"
+                      className="input"
+                      value={newBoat.slotLength}
+                      onChange={(e) => setNewBoat({ ...newBoat, slotLength: Number(e.target.value) })}
+                    />
+                    <p className="help">How long each selectable time slot is (hours).</p>
+                  </div>
+
+                  <div>
+                    <label className="label">Minimum hours</label>
+                    <input
+                      type="number"
+                      min="1"
+                      className="input"
+                      value={newBoat.minHours}
+                      onChange={(e) => setNewBoat({ ...newBoat, minHours: Number(e.target.value) })}
+                    />
+                    <p className="help">Minimum booking duration (hours).</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="divider my-7" />
+
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Boat Photos (Gallery)</label>
+                <label className="label">Boat photos (gallery)</label>
                 <input
                   type="file"
                   accept="image/*"
                   multiple
-                  className="w-full"
+                  className="file-input"
                   onChange={(e) => setNewBoatImages(Array.from(e.target.files || []))}
                 />
                 {newBoatImages.length > 0 && (
@@ -1918,19 +2010,12 @@ export default function BoatCharterPlatform() {
                 )}
               </div>
 
-              <div className="flex gap-3">
-                <button
-                  onClick={addNewBoat}
-                  disabled={uploading}
-                  className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-4 rounded-xl font-bold disabled:opacity-60"
-                >
-                  {uploading ? "Uploading..." : "List Boat"}
+              <div className="mt-7 flex flex-col sm:flex-row gap-3">
+                <button onClick={addNewBoat} disabled={uploading} className="btn btn-primary flex-1">
+                  {uploading ? "Uploading…" : "List Boat"}
                 </button>
 
-                <button
-                  onClick={() => setView("browse")}
-                  className="px-6 py-4 border-2 border-slate-300 text-slate-700 rounded-xl font-bold hover:bg-slate-50"
-                >
+                <button onClick={() => setView("browse")} className="btn btn-secondary">
                   Cancel
                 </button>
               </div>
@@ -1938,7 +2023,7 @@ export default function BoatCharterPlatform() {
           </div>
         )}
 
-        {/* Edit Boat View */}
+{/* Edit Boat View */}
         {view === "edit-boat" && currentUser && currentUserType === "owner" && editingBoat && (
           <div>
             <div className="flex items-center justify-between mb-6">
