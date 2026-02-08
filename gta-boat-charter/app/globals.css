@@ -941,17 +941,14 @@ a:focus-visible {
   position:absolute;
   inset:0;
   z-index:-1;
-  opacity:0.55;
   pointer-events:none;
-  background-image:
-    linear-gradient(to right, rgba(15, 23, 42, 0.035) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(15, 23, 42, 0.035) 1px, transparent 1px);
-  background-size: 44px 44px;
-  mask-image: radial-gradient(circle at 50% 0%, black 55%, transparent 95%);
+  opacity:0.10;
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%27200%27%20height%3D%27200%27%3E%0A%3Cfilter%20id%3D%27n%27%3E%0A%20%20%3CfeTurbulence%20type%3D%27fractalNoise%27%20baseFrequency%3D%27.8%27%20numOctaves%3D%273%27%20stitchTiles%3D%27stitch%27/%3E%0A%3C/filter%3E%0A%3Crect%20width%3D%27200%27%20height%3D%27200%27%20filter%3D%27url%28%23n%29%27%20opacity%3D%27.35%27/%3E%0A%3C/svg%3E");
+  background-size: 220px 220px;
+  mix-blend-mode: overlay;
 }
 
-
-  /* Landing “chips” variant used in hero (chip chip-soft) */
+/* Landing “chips” variant used in hero (chip chip-soft) */
   .chip-soft {
     @apply chip;
     background: rgba(255, 255, 255, 0.70);
