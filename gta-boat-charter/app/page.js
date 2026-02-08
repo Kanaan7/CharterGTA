@@ -164,34 +164,34 @@ function DatePicker({ selectedDate, onSelectDate, rules }) {
   const monthName = currentMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
   return (
-    <div className="bg-white rounded-xl border border-sky-200 p-4">
-      <div className="flex items-center justify-between mb-4">
+    <div className="card-standard p-6">
+      <div className="flex items-center justify-between mb-6">
         <button
           onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
-          className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+          className="btn-ghost p-2"
         >
-          <ChevronLeft className="w-5 h-5 text-slate-600" />
+          <ChevronLeft className="w-5 h-5" />
         </button>
 
-        <h3 className="font-semibold text-slate-900">{monthName}</h3>
+        <h3 className="text-lg font-bold text-slate-900">{monthName}</h3>
 
         <button
           onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
-          className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+          className="btn-ghost p-2"
         >
-          <ChevronRight className="w-5 h-5 text-slate-600" />
+          <ChevronRight className="w-5 h-5" />
         </button>
       </div>
 
-      <div className="grid grid-cols-7 gap-1 mb-2">
+      <div className="grid grid-cols-7 gap-1.5 mb-3">
         {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-          <div key={day} className="text-center text-xs font-semibold text-slate-500 py-2">
+          <div key={day} className="text-center text-xs font-bold text-slate-500 uppercase tracking-wide py-2">
             {day}
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-1.5">
         {days.map((date, idx) => {
           const available = isDateAvailable(date);
           const selected = isDateSelected(date);
@@ -203,12 +203,11 @@ function DatePicker({ selectedDate, onSelectDate, rules }) {
               onClick={() => date && available && !isPast && onSelectDate(toLocalDateStr(date))}
               disabled={!date || !available || isPast}
               className={`
-                aspect-square p-2 rounded-lg text-sm font-medium transition-all
                 ${!date ? "invisible" : ""}
-                ${selected ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg scale-105" : ""}
-                ${available && !selected && !isPast ? "bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200" : ""}
-                ${!available && date && !isPast ? "text-slate-300 cursor-not-allowed" : ""}
-                ${isPast && date ? "text-slate-200 cursor-not-allowed line-through" : ""}
+                ${selected ? "calendar-day-selected" : ""}
+                ${available && !selected && !isPast ? "calendar-day-available" : ""}
+                ${!available && date && !isPast ? "calendar-day-unavailable" : ""}
+                ${isPast && date ? "calendar-day-unavailable line-through" : ""}
               `}
             >
               {date?.getDate()}
@@ -217,18 +216,18 @@ function DatePicker({ selectedDate, onSelectDate, rules }) {
         })}
       </div>
 
-      <div className="flex items-center gap-4 mt-4 pt-4 border-t border-sky-100 text-xs">
+      <div className="flex items-center justify-center gap-6 mt-6 pt-5 border-t text-xs">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-blue-50 border border-blue-200 rounded"></div>
-          <span className="text-slate-600">Available</span>
+          <div className="w-3 h-3 bg-white border-2 border-slate-200 rounded"></div>
+          <span className="text-slate-600 font-medium">Available</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded"></div>
-          <span className="text-slate-600">Selected</span>
+          <div className="w-3 h-3 bg-gradient-to-br from-blue-600 to-cyan-600 rounded shadow-sm"></div>
+          <span className="text-slate-600 font-medium">Selected</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 bg-slate-100 rounded"></div>
-          <span className="text-slate-600">Unavailable</span>
+          <span className="text-slate-600 font-medium">Unavailable</span>
         </div>
       </div>
     </div>
@@ -243,18 +242,22 @@ function AuthModal({ onClose, onGoogle, onEmailAuth }) {
   const [password, setPassword] = useState("");
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white w-full max-w-md rounded-2xl p-8 shadow-xl space-y-6">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold">{mode === "login" ? "Welcome Back" : "Create Account"}</h2>
-          <p className="text-gray-500 text-sm">GTA Charter Booking Portal</p>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-fadeIn">
+      <div className="card-elevated w-full max-w-md p-8 space-y-6 animate-scaleIn">
+        <div className="text-center space-y-2">
+          <h2 className="text-3xl font-bold text-slate-900">
+            {mode === "login" ? "Welcome Back" : "Create Account"}
+          </h2>
+          <p className="text-slate-600">GTA Charter Booking Portal</p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-3">
           <button
             onClick={() => setRole("user")}
-            className={`flex-1 py-2 rounded-lg border ${
-              role === "user" ? "bg-blue-600 text-white border-blue-600" : "border-gray-300"
+            className={`py-3 rounded-xl font-semibold border-2 transition-all ${
+              role === "user" 
+                ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white border-transparent shadow-brand" 
+                : "border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50"
             }`}
           >
             Passenger
@@ -262,8 +265,10 @@ function AuthModal({ onClose, onGoogle, onEmailAuth }) {
 
           <button
             onClick={() => setRole("owner")}
-            className={`flex-1 py-2 rounded-lg border ${
-              role === "owner" ? "bg-blue-600 text-white border-blue-600" : "border-gray-300"
+            className={`py-3 rounded-xl font-semibold border-2 transition-all ${
+              role === "owner" 
+                ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white border-transparent shadow-brand" 
+                : "border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50"
             }`}
           >
             Boat Owner
@@ -274,7 +279,7 @@ function AuthModal({ onClose, onGoogle, onEmailAuth }) {
           <input
             type="email"
             placeholder="Email address"
-            className="w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="input"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
@@ -282,7 +287,7 @@ function AuthModal({ onClose, onGoogle, onEmailAuth }) {
           <input
             type="password"
             placeholder="Password"
-            className="w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="input"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
@@ -290,36 +295,36 @@ function AuthModal({ onClose, onGoogle, onEmailAuth }) {
 
         <button
           onClick={() => onEmailAuth({ mode, role, email, password })}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2 font-medium transition"
+          className="btn-primary w-full py-4"
         >
           {mode === "login" ? "Sign In" : "Create Account"}
         </button>
 
-        <div className="flex items-center gap-3 text-gray-400 text-sm">
-          <div className="h-px bg-gray-300 flex-1" />
-          OR
-          <div className="h-px bg-gray-300 flex-1" />
+        <div className="relative flex items-center gap-3 text-slate-400 text-sm">
+          <div className="divider" />
+          <span className="font-medium px-2">OR</span>
+          <div className="divider" />
         </div>
 
         <button
           onClick={() => onGoogle(role)}
-          className="w-full border rounded-lg py-2 flex items-center justify-center gap-2 hover:bg-gray-50"
+          className="btn-secondary w-full py-4"
         >
           <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="google" />
           Continue with Google
         </button>
 
-        <p className="text-center text-sm text-gray-600">
+        <p className="text-center text-sm text-slate-600">
           {mode === "login" ? "Don't have an account?" : "Already have an account?"}{" "}
-          <span
+          <button
             onClick={() => setMode(mode === "login" ? "signup" : "login")}
-            className="text-blue-600 cursor-pointer font-medium"
+            className="text-blue-600 hover:text-blue-700 font-semibold transition-colors"
           >
             {mode === "login" ? "Sign up" : "Sign in"}
-          </span>
+          </button>
         </p>
 
-        <button onClick={onClose} className="w-full text-gray-500 text-sm">
+        <button onClick={onClose} className="w-full btn-ghost text-slate-500">
           Cancel
         </button>
       </div>
