@@ -935,17 +935,6 @@ a:focus-visible {
     linear-gradient(180deg, rgba(255,255,255,0.00), rgba(255,255,255,0.70));
 }
 
-/* Texture overlay disabled (removes visible blocks/seams) */
-.app-shell::after{
-  content:"";
-  position:absolute;
-  inset:0;
-  z-index:-1;
-  pointer-events:none;
-  opacity:0;
-  background:none;
-}
-
 /* Landing “chips” variant used in hero (chip chip-soft) */
   .chip-soft {
     @apply chip;
@@ -1000,3 +989,53 @@ a:focus-visible {
   .lux-contact__label { @apply text-xs font-semibold uppercase tracking-wide; color: rgb(var(--text-muted)); }
   .lux-contact__value { @apply mt-1 text-base font-semibold; color: rgb(var(--text-primary)); }
 }
+
+
+/* =========================
+   Real Background (v3.3)
+   Drop a file at /public/bg-lake.webp (or .jpg/.png) and it will be used.
+   If missing, the gradient fallback still looks good.
+========================= */
+:root{
+  --bg-photo-url: url("/bg-lake.webp");
+}
+
+/* App shell background */
+.app-shell{
+  position: relative;
+  isolation: isolate;
+  /* fallback gradient */
+  background:
+    radial-gradient(1200px 700px at 20% 15%, rgba(59,130,246,0.16), transparent 55%),
+    radial-gradient(900px 600px at 80% 10%, rgba(20,184,166,0.14), transparent 58%),
+    radial-gradient(1100px 800px at 50% 70%, rgba(2,132,199,0.10), transparent 62%),
+    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 45%, #f8fafc 100%);
+}
+
+/* Photo layer (real background). Uses cover so it never tiles. */
+.app-shell::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:-2;
+  pointer-events:none;
+  background-image: var(--bg-photo-url);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  filter: saturate(1.05) contrast(1.02);
+  opacity: 0.22; /* keep it subtle so UI stays readable */
+}
+
+/* Soft readability veil + vignette */
+.app-shell::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:-1;
+  pointer-events:none;
+  background:
+    radial-gradient(1200px 800px at 50% 30%, rgba(255,255,255,0.25), rgba(255,255,255,0.65) 55%, rgba(255,255,255,0.90) 100%),
+    radial-gradient(1400px 900px at 50% 20%, transparent 45%, rgba(15,23,42,0.06) 100%);
+}
+
