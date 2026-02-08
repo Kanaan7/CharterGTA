@@ -1088,7 +1088,11 @@ export default function BoatCharterPlatform() {
           <div className="space-y-10">
             {/* Hero */}
             <section className="relative overflow-hidden rounded-3xl border border-white/60 bg-[radial-gradient(1200px_circle_at_20%_20%,rgba(56,189,248,0.22),transparent_55%),radial-gradient(900px_circle_at_80%_30%,rgba(37,99,235,0.18),transparent_55%),linear-gradient(to_bottom,rgba(255,255,255,0.85),rgba(255,255,255,0.55))] shadow-strong">
-              <div className="absolute inset-0 pointer-events-none bg-grid-soft" />
+              <div className="absolute inset-0 pointer-events-none">
+                <div className="bg-ambient" />
+                <div className="bg-grain" />
+                <div className="bg-vignette" />
+              </div>
               <div className="relative px-6 py-14 md:px-12 md:py-20">
                 <div className="max-w-3xl">
                   <p className="inline-flex items-center gap-2 text-xs font-semibold tracking-wide uppercase text-slate-600">
