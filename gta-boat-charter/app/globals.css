@@ -1084,3 +1084,15 @@ a:focus-visible {
   line-height:1;
 }
 
+.input-error{
+  border-color: rgba(239,68,68,.55) !important;
+  box-shadow: 0 0 0 4px rgba(239,68,68,.08), var(--shadow-inner) !important;
+}
+
+.field-error{
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgb(220 38 38);
+}
+
