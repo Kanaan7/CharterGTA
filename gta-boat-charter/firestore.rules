@@ -1,0 +1,296 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function stripeAccountId() {
+      return userDoc().data.stripeConnect.accountId == null
+        ? ""
+        : userDoc().data.stripeConnect.accountId;
+    }
+
+    function stripeReady() {
+      return userDoc().data.stripeConnect.chargesEnabled == true
+        && userDoc().data.stripeConnect.payoutsEnabled == true;
+    }
+
+    function canReadBooking(booking) {
+      return signedIn()
+        && (booking.userId == request.auth.uid || booking.ownerId == request.auth.uid);
+    }
+
+    function conversationParticipant(conversationId) {
+      return signedIn()
+        && get(/databases/$(database)/documents/conversations/$(conversationId))
+          .data
+          .participantIds
+          .hasAny([request.auth.uid]);
+    }
+
+    match /users/{userId} {
+      allow read: if isSelf(userId);
+
+      allow create: if isSelf(userId)
+        && request.resource.data.keys().hasOnly([
+          "uid",
+          "email",
+          "displayName",
+          "photoURL",
+          "accountTypes",
+          "lastActiveType",
+          "createdAt",
+          "updatedAt"
+        ])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email is string
+        && request.resource.data.displayName is string
+        && request.resource.data.photoURL is string
+        && request.resource.data.accountTypes is list
+        && request.resource.data.accountTypes.size() > 0
+        && request.resource.data.accountTypes.hasOnly(["user", "owner"])
+        && request.resource.data.accountTypes.hasAny([request.resource.data.lastActiveType]);
+
+      allow update: if isSelf(userId)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "email",
+          "displayName",
+          "photoURL",
+          "accountTypes",
+          "lastActiveType",
+          "updatedAt"
+        ])
+        && request.resource.data.email is string
+        && request.resource.data.displayName is string
+        && request.resource.data.photoURL is string
+        && request.resource.data.accountTypes is list
+        && request.resource.data.accountTypes.size() > 0
+        && request.resource.data.accountTypes.hasOnly(["user", "owner"])
+        && request.resource.data.accountTypes.hasAny([request.resource.data.lastActiveType]);
+
+      allow delete: if false;
+    }
+
+    match /boats/{boatId} {
+      allow read: if true;
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          "name",
+          "location",
+          "type",
+          "capacity",
+          "price",
+          "description",
+          "amenities",
+          "mediaItems",
+          "imageUrls",
+          "imageUrl",
+          "status",
+          "availabilityRules",
+          "bookingDurationHours",
+          "bookableSlots",
+          "ownerId",
+          "ownerName",
+          "ownerEmail",
+          "ownerStripeAccountId",
+          "ownerStripeReady",
+          "rating",
+          "reviews",
+          "createdAt",
+          "updatedAt",
+          "bookingDisabled",
+          "archivedAt"
+        ])
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.name is string
+        && request.resource.data.location is string
+        && request.resource.data.type is string
+        && request.resource.data.ownerName is string
+        && request.resource.data.ownerEmail is string
+        && (request.resource.data.capacity is int || request.resource.data.capacity is float)
+        && (request.resource.data.price is int || request.resource.data.price is float)
+        && request.resource.data.description is string
+        && request.resource.data.amenities is list
+        && request.resource.data.mediaItems is list
+        && request.resource.data.imageUrls is list
+        && request.resource.data.imageUrl is string
+        && request.resource.data.availabilityRules is map
+        && request.resource.data.bookableSlots is list
+        && ["draft", "live", "archived"].hasAny([request.resource.data.status])
+        && request.resource.data.rating == 0
+        && request.resource.data.reviews == 0
+        && request.resource.data.ownerStripeAccountId == stripeAccountId()
+        && request.resource.data.ownerStripeReady == stripeReady();
+
+      allow update: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          "name",
+          "location",
+          "type",
+          "capacity",
+          "price",
+          "description",
+          "amenities",
+          "mediaItems",
+          "imageUrls",
+          "imageUrl",
+          "status",
+          "availabilityRules",
+          "bookingDurationHours",
+          "bookableSlots",
+          "ownerId",
+          "ownerName",
+          "ownerEmail",
+          "ownerStripeAccountId",
+          "ownerStripeReady",
+          "rating",
+          "reviews",
+          "bookedSlots",
+          "createdAt",
+          "updatedAt",
+          "bookingDisabled",
+          "archivedAt"
+        ])
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.name is string
+        && request.resource.data.location is string
+        && request.resource.data.type is string
+        && request.resource.data.ownerName is string
+        && request.resource.data.ownerEmail is string
+        && (request.resource.data.capacity is int || request.resource.data.capacity is float)
+        && (request.resource.data.price is int || request.resource.data.price is float)
+        && request.resource.data.description is string
+        && request.resource.data.amenities is list
+        && request.resource.data.mediaItems is list
+        && request.resource.data.imageUrls is list
+        && request.resource.data.imageUrl is string
+        && request.resource.data.availabilityRules is map
+        && request.resource.data.bookableSlots is list
+        && ["draft", "live", "archived"].hasAny([request.resource.data.status])
+        && request.resource.data.rating == resource.data.rating
+        && request.resource.data.reviews == resource.data.reviews
+        && request.resource.data.bookedSlots == resource.data.bookedSlots
+        && request.resource.data.ownerStripeAccountId == stripeAccountId()
+        && request.resource.data.ownerStripeReady == stripeReady();
+
+      allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+    }
+
+    match /bookings/{bookingId} {
+      allow read: if canReadBooking(resource.data);
+
+      // Bookings are reserved and confirmed by trusted server logic only.
+      allow create, update, delete: if false;
+    }
+
+    match /conversations/{conversationId} {
+      allow read: if signedIn() && resource.data.participantIds.hasAny([request.auth.uid]);
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          "boatId",
+          "boatName",
+          "boatImageUrl",
+          "participantIds",
+          "participantNames",
+          "lastMessage",
+          "lastMessageAt",
+          "createdAt",
+          "updatedAt"
+        ])
+        && request.resource.data.boatId is string
+        && request.resource.data.boatName is string
+        && request.resource.data.boatImageUrl is string
+        && request.resource.data.participantIds is list
+        && request.resource.data.participantIds.size() == 2
+        && request.resource.data.participantIds.hasAny([request.auth.uid])
+        && request.resource.data.participantNames is map
+        && request.resource.data.lastMessage is string;
+
+      allow update: if signedIn()
+        && resource.data.participantIds.hasAny([request.auth.uid])
+        && request.resource.data.keys().hasOnly([
+          "boatId",
+          "boatName",
+          "boatImageUrl",
+          "participantIds",
+          "participantNames",
+          "lastMessage",
+          "lastMessageAt",
+          "createdAt",
+          "updatedAt"
+        ])
+        && request.resource.data.participantIds == resource.data.participantIds
+        && request.resource.data.participantNames == resource.data.participantNames
+        && request.resource.data.boatId == resource.data.boatId
+        && request.resource.data.boatName == resource.data.boatName
+        && request.resource.data.boatImageUrl == resource.data.boatImageUrl
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "lastMessage",
+          "lastMessageAt",
+          "updatedAt"
+        ])
+        && request.resource.data.lastMessage is string;
+
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if conversationParticipant(conversationId);
+
+        allow create: if conversationParticipant(conversationId)
+          && request.resource.data.keys().hasOnly([
+            "senderId",
+            "senderName",
+            "text",
+            "attachmentUrl",
+            "attachmentType",
+            "createdAt"
+          ])
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.senderName is string
+          && request.resource.data.text is string
+          && (
+            request.resource.data.attachmentUrl == null
+            || request.resource.data.attachmentUrl is string
+          )
+          && (
+            request.resource.data.text.size() > 0
+            || request.resource.data.attachmentUrl is string
+          )
+          && (
+            request.resource.data.attachmentType == null
+            || ["image"].hasAny([request.resource.data.attachmentType])
+          );
+
+        allow update, delete: if false;
+      }
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if true;
+
+      // Reviews are written through trusted server logic so booking ownership
+      // and aggregate boat rating updates are enforced together.
+      allow create, update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -8,10 +8,12 @@ import {
   LogIn,
   LogOut,
   MapPin,
+  Menu,
   MessageCircle,
   Plus,
   Star,
   Users,
+  X,
 } from "lucide-react";
 
 import { auth, db } from "../lib/firebase";
@@ -188,6 +190,7 @@ export default function MarketplaceApp() {
   const [view, setView] = useState("landing");
   const [loading, setLoading] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const [currentUser, setCurrentUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
@@ -249,15 +252,20 @@ export default function MarketplaceApp() {
       });
   }, [boats, currentUser?.uid]);
 
-  const hasConfirmedBookingForBoat = useMemo(() => {
-    if (!selectedBoat?.id) return false;
-    return myBookings.some((booking) => booking.boatId === selectedBoat.id && booking.status === "confirmed");
+  const confirmedBookingsForSelectedBoat = useMemo(() => {
+    if (!selectedBoat?.id) return [];
+    return myBookings.filter((booking) => booking.boatId === selectedBoat.id && booking.status === "confirmed");
   }, [myBookings, selectedBoat?.id]);
 
+  const hasConfirmedBookingForBoat = confirmedBookingsForSelectedBoat.length > 0;
+
   const alreadyReviewed = useMemo(() => {
-    if (!selectedBoat?.id || !currentUser?.uid) return false;
-    return userReviews.some((review) => review.boatId === selectedBoat.id);
-  }, [currentUser?.uid, selectedBoat?.id, userReviews]);
+    if (!selectedBoat?.id || !confirmedBookingsForSelectedBoat.length) return false;
+
+    return confirmedBookingsForSelectedBoat.every((booking) =>
+      userReviews.some((review) => (review.bookingId ? review.bookingId === booking.id : review.boatId === selectedBoat.id))
+    );
+  }, [confirmedBookingsForSelectedBoat, selectedBoat?.id, userReviews]);
 
   const activeListingForm = editingBoat || newBoat;
   const activeListingFiles = editingBoat ? editImageFiles : newBoatImages;
@@ -266,6 +274,23 @@ export default function MarketplaceApp() {
     setActiveGalleryIndex(0);
     setIsMediaViewerOpen(false);
   }, [selectedBoat?.id]);
+
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [view, currentUser?.uid, currentUserType]);
+
+  useEffect(() => {
+    if (!isMobileMenuOpen) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setIsMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isMobileMenuOpen]);
 
   useEffect(() => {
     if (!messageAttachment) {
@@ -751,36 +776,13 @@ export default function MarketplaceApp() {
     }
 
     try {
-      const reviewId = `${selectedBoat.id}__${currentUser.uid}`;
-      await setDoc(doc(db, "reviews", reviewId), {
-        boatId: selectedBoat.id,
-        boatName: selectedBoat.name || "",
-        ownerId: selectedBoat.ownerId || "",
-        userId: currentUser.uid,
-        userName: userProfile?.displayName || currentUser.displayName || "User",
-        stars,
-        text: ratingText.trim(),
-        createdAt: serverTimestamp(),
-      });
-
-      const allReviewsSnapshot = await getDocs(query(collection(db, "reviews"), where("boatId", "==", selectedBoat.id)));
-      let total = 0;
-      let count = 0;
-
-      allReviewsSnapshot.forEach((item) => {
-        const score = Number(item.data().stars || 0);
-        if (score >= 1 && score <= 5) {
-          total += score;
-          count += 1;
-        }
-      });
-
-      const average = count ? Math.round((total / count) * 10) / 10 : 0;
-
-      await updateDoc(doc(db, "boats", selectedBoat.id), {
-        rating: average,
-        reviews: count,
-        updatedAt: serverTimestamp(),
+      await authorizedJson("/api/create-review", {
+        method: "POST",
+        body: JSON.stringify({
+          boatId: selectedBoat.id,
+          stars,
+          text: ratingText.trim(),
+        }),
       });
 
       setRatingValue(5);
@@ -988,6 +990,30 @@ export default function MarketplaceApp() {
     setActiveGalleryIndex((current) => (current - 1 + selectedBoatGalleryMedia.length) % selectedBoatGalleryMedia.length);
   };
 
+  const goToView = (nextView) => {
+    setIsMobileMenuOpen(false);
+    setView(nextView);
+  };
+
+  const openAuthModal = () => {
+    setIsMobileMenuOpen(false);
+    setShowAuthModal(true);
+  };
+
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen((current) => !current);
+  };
+
+  const handleMobileAccountTypeChange = async (nextType) => {
+    setIsMobileMenuOpen(false);
+    await switchAccountType(nextType);
+  };
+
+  const handleMobileSignOut = async () => {
+    setIsMobileMenuOpen(false);
+    await handleSignOut();
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-sky-50 via-blue-50 to-cyan-50">
@@ -1017,8 +1043,15 @@ export default function MarketplaceApp() {
 
       <header className="header-glass">
         <div className="max-w-7xl mx-auto px-4 py-3 sm:py-4">
-          <div className="flex items-center justify-between gap-3 sm:gap-4">
-            <button type="button" className="flex items-center gap-2.5 sm:gap-3" onClick={() => setView("landing")}>
+          <div className="relative flex items-center justify-between gap-3 sm:gap-4">
+            <button
+              type="button"
+              className="flex items-center gap-2.5 sm:gap-3"
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                setView("landing");
+              }}
+            >
               <div className="gradient-blue rounded-2xl p-2.5 shadow-blue sm:p-2.5">
                 <Anchor className="h-5 w-5 text-white sm:h-6 sm:w-6" />
               </div>
@@ -1030,7 +1063,7 @@ export default function MarketplaceApp() {
               </div>
             </button>
 
-            <div className="tab-scroll items-center">
+            <div className="hidden tab-scroll items-center sm:flex">
               {currentUser ? (
                 <>
                   {userProfile?.accountTypes?.length > 1 ? (
@@ -1080,7 +1113,114 @@ export default function MarketplaceApp() {
                 </button>
               )}
             </div>
+
+            <div className="flex items-center gap-2 sm:hidden">
+              {currentUser ? (
+                <>
+                  <div className="mobile-nav-role">
+                    {currentUserType === "owner" ? "Owner" : "Passenger"}
+                  </div>
+                  <button
+                    type="button"
+                    className={`mobile-nav-toggle ${isMobileMenuOpen ? "is-open" : ""}`}
+                    onClick={toggleMobileMenu}
+                    aria-expanded={isMobileMenuOpen}
+                    aria-controls="mobile-navigation"
+                    aria-haspopup="menu"
+                    aria-label={isMobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+                  >
+                    {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                  </button>
+                </>
+              ) : (
+                <button onClick={openAuthModal} className="btn btn-primary text-sm">
+                  <LogIn className="h-4 w-4" />
+                  Sign In
+                </button>
+              )}
+            </div>
           </div>
+
+          {currentUser ? (
+            <div
+              id="mobile-navigation"
+              className={`mobile-nav-panel sm:hidden ${isMobileMenuOpen ? "is-open" : ""}`}
+              aria-hidden={!isMobileMenuOpen}
+            >
+              {userProfile?.accountTypes?.length > 1 ? (
+                <div className="mobile-nav-panel__section">
+                  <div className="mobile-nav-label">Mode</div>
+                  <select
+                    value={currentUserType || "user"}
+                    onChange={(event) => handleMobileAccountTypeChange(event.target.value)}
+                    className="select mobile-nav-select"
+                  >
+                    {(userProfile.accountTypes || []).map((type) => (
+                      <option key={type} value={type}>
+                        {type === "owner" ? "Owner" : "Passenger"}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+
+              <div className="mobile-nav-panel__section">
+                <div className="mobile-nav-label">Navigate</div>
+                <div className="mobile-nav-items" role="menu">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => goToView("browse")}
+                    className={`mobile-nav-item ${view === "browse" ? "is-active" : ""}`}
+                  >
+                    Browse
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => goToView("messages")}
+                    className={`mobile-nav-item ${view === "messages" ? "is-active" : ""}`}
+                  >
+                    Messages
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => goToView("bookings")}
+                    className={`mobile-nav-item ${view === "bookings" ? "is-active" : ""}`}
+                  >
+                    My Bookings
+                  </button>
+                  {currentUserType === "owner" ? (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => goToView("list-boat")}
+                      className={`mobile-nav-item ${["list-boat", "edit-boat"].includes(view) ? "is-active" : ""}`}
+                    >
+                      List Boat
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => handleMobileAccountTypeChange("owner")}
+                      className="mobile-nav-item"
+                    >
+                      Become an owner
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="mobile-nav-panel__section">
+                <button type="button" onClick={handleMobileSignOut} className="mobile-nav-signout">
+                  <LogOut className="h-4 w-4" />
+                  Sign Out
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
       </header>
 
