@@ -45,12 +45,12 @@ export default function DatePicker({ selectedDate, onSelectDate, rules }) {
   };
 
   return (
-    <div className="rounded-3xl border border-sky-200 bg-white p-4 shadow-sm">
+    <div className="rounded-3xl border border-sky-200 bg-white p-3.5 shadow-sm sm:p-4">
       <div className="mb-4 flex items-center justify-between">
         <button
           type="button"
           onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))}
-          className="rounded-xl p-2 hover:bg-slate-100"
+          className="rounded-xl p-2.5 hover:bg-slate-100"
           aria-label="Previous month"
         >
           <ChevronLeft className="h-5 w-5 text-slate-600" />
@@ -61,23 +61,23 @@ export default function DatePicker({ selectedDate, onSelectDate, rules }) {
         <button
           type="button"
           onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))}
-          className="rounded-xl p-2 hover:bg-slate-100"
+          className="rounded-xl p-2.5 hover:bg-slate-100"
           aria-label="Next month"
         >
           <ChevronRight className="h-5 w-5 text-slate-600" />
         </button>
       </div>
 
-      <div className="mb-2 grid grid-cols-7 gap-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">
+      <div className="mb-2 grid grid-cols-7 gap-1.5 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-400 sm:gap-2 sm:text-xs">
         {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
           <div key={day}>{day}</div>
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-2">
+      <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
         {days.map((date, index) => {
           if (!date) {
-            return <div key={`empty-${index}`} className="h-11" />;
+            return <div key={`empty-${index}`} className="h-11 sm:h-11" />;
           }
 
           const available = isDateAvailable(date);
@@ -89,7 +89,7 @@ export default function DatePicker({ selectedDate, onSelectDate, rules }) {
               type="button"
               onClick={() => available && onSelectDate(toLocalDateStr(date))}
               disabled={!available}
-              className={`h-11 rounded-2xl text-sm font-semibold transition ${
+              className={`h-11 rounded-2xl text-sm font-semibold transition sm:h-11 ${
                 selected
                   ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md"
                   : available

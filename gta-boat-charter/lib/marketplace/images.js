@@ -1,4 +1,5 @@
 const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_VIDEO_SIZE_BYTES = 100 * 1024 * 1024;
 const MAX_ATTACHMENT_SIZE_BYTES = 8 * 1024 * 1024;
 
 function ensureCloudinaryEnv() {
@@ -12,6 +13,12 @@ function ensureCloudinaryEnv() {
   return { cloudName, uploadPreset };
 }
 
+function buildVideoPosterUrl(url) {
+  if (!url || !url.includes("/video/upload/")) return "";
+  const transformed = url.replace("/video/upload/", "/video/upload/so_0,f_jpg/");
+  return transformed.replace(/\.[^./?]+(\?.*)?$/, ".jpg$1");
+}
+
 async function uploadFile(file, folder) {
   const { cloudName, uploadPreset } = ensureCloudinaryEnv();
 
@@ -20,7 +27,7 @@ async function uploadFile(file, folder) {
   formData.append("upload_preset", uploadPreset);
   formData.append("folder", folder);
 
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
     method: "POST",
     body: formData,
   });
@@ -31,23 +38,35 @@ async function uploadFile(file, folder) {
   }
 
   const data = await response.json();
-  return data.secure_url;
+  return {
+    id: data.asset_id || data.public_id || data.secure_url,
+    type: data.resource_type === "video" ? "video" : "image",
+    url: data.secure_url,
+    thumbnailUrl: data.resource_type === "video" ? buildVideoPosterUrl(data.secure_url) : data.secure_url,
+  };
 }
 
 export async function uploadImagesToCloudinary(files) {
-  const images = Array.from(files || []);
+  const mediaFiles = Array.from(files || []);
 
-  for (const image of images) {
-    if (!image.type?.startsWith("image/")) {
-      throw new Error("Only image files can be uploaded for boat galleries.");
+  for (const file of mediaFiles) {
+    const isImage = file.type?.startsWith("image/");
+    const isVideo = file.type?.startsWith("video/");
+
+    if (!isImage && !isVideo) {
+      throw new Error("Only image and video files can be uploaded for boat galleries.");
     }
 
-    if (image.size > MAX_IMAGE_SIZE_BYTES) {
-      throw new Error(`${image.name} is too large. Keep boat photos under 10MB each.`);
+    if (isImage && file.size > MAX_IMAGE_SIZE_BYTES) {
+      throw new Error(`${file.name} is too large. Keep photos under 10MB each.`);
+    }
+
+    if (isVideo && file.size > MAX_VIDEO_SIZE_BYTES) {
+      throw new Error(`${file.name} is too large. Keep videos under 100MB each.`);
     }
   }
 
-  return Promise.all(images.map((image) => uploadFile(image, "boats")));
+  return Promise.all(mediaFiles.map((file) => uploadFile(file, "boats")));
 }
 
 export async function uploadMessageAttachmentToCloudinary(file) {

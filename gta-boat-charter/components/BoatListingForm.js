@@ -34,20 +34,20 @@ export default function BoatListingForm({
   const isEdit = mode === "edit";
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-end justify-between gap-4">
+    <div className="mobile-section-gap space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-3xl font-extrabold tracking-tight text-slate-950">
+          <h2 className="mobile-heading-tight text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
             {isEdit ? "Edit listing" : "List your boat"}
           </h2>
-          <p className="mt-1 text-slate-600">
+          <p className="mobile-subtle-copy mt-1 text-sm leading-relaxed text-slate-600 sm:text-base">
             {isEdit
               ? "Tighten listing details, availability, and payout readiness before guests book."
               : "Build a production-style listing with strong validation, clear availability, and secure payouts."}
           </p>
         </div>
 
-        <button onClick={onCancel} className="btn btn-ghost">
+        <button onClick={onCancel} className="btn btn-ghost sm:w-auto">
           {isEdit ? "Back to listing" : "Back"}
         </button>
       </div>
@@ -60,8 +60,8 @@ export default function BoatListingForm({
         onManage={onManageStripe}
       />
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.9fr)]">
-        <div className="card p-7 md:p-8">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.9fr)] xl:gap-6">
+        <div className="card p-5 sm:p-6 md:p-8">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="md:col-span-2">
               <label className="label">Boat name</label>
@@ -171,7 +171,7 @@ export default function BoatListingForm({
             </div>
           </div>
 
-          <div className="divider my-7" />
+          <div className="divider my-6 sm:my-7" />
 
           <div className="grid gap-4 md:grid-cols-2">
             <div>
@@ -224,7 +224,7 @@ export default function BoatListingForm({
             </div>
           </div>
 
-          <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
               <ShieldCheck className="h-4 w-4 text-emerald-600" />
               Published slots
@@ -242,18 +242,18 @@ export default function BoatListingForm({
             </div>
           </div>
 
-          <div className="divider my-7" />
+          <div className="divider my-6 sm:my-7" />
 
           <div>
-            <label className="label">Photo gallery</label>
+            <label className="label">Photos and videos</label>
             <input
               type="file"
-              accept="image/*"
+              accept="image/*,video/*"
               multiple
               className="file-input"
               onChange={(event) => onFilesChange(Array.from(event.target.files || []))}
             />
-            <p className="help">Upload multiple photos to make the listing feel credible and complete.</p>
+            <p className="help">Upload polished photos or short walkthrough videos to make the listing feel more premium.</p>
             {selectedFiles.length ? (
               <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
                 {selectedFiles.map((file) => (
@@ -266,7 +266,7 @@ export default function BoatListingForm({
             ) : null}
           </div>
 
-          <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-6 flex flex-col gap-3 sm:mt-7 sm:flex-row">
             <button onClick={onSubmit} disabled={uploading} className="btn btn-primary flex-1">
               {uploading ? "Saving..." : isEdit ? "Save changes" : "Publish listing"}
             </button>
@@ -276,9 +276,9 @@ export default function BoatListingForm({
           </div>
         </div>
 
-        <div className="space-y-6">
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
+        <div className="space-y-5 sm:space-y-6">
+          <div className="card p-5 sm:p-6">
+            <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Preview</div>
                 <h3 className="mt-1 text-xl font-extrabold text-slate-950">Listing card</h3>
@@ -287,14 +287,14 @@ export default function BoatListingForm({
             </div>
 
             <div className="mt-4 overflow-hidden rounded-3xl border border-slate-200 bg-white">
-              <img src={getBoatCoverImage(form)} alt={form.name || "Boat preview"} className="h-48 w-full object-cover" />
-              <div className="p-5">
+              <img src={getBoatCoverImage(form)} alt={form.name || "Boat preview"} className="h-40 w-full object-cover sm:h-48" />
+              <div className="p-4 sm:p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className="text-lg font-extrabold text-slate-950">{form.name || "Your boat name"}</div>
+                    <div className="text-base font-extrabold text-slate-950 sm:text-lg">{form.name || "Your boat name"}</div>
                     <div className="mt-1 text-sm text-slate-600">{form.location}</div>
                   </div>
-                  <div className="rounded-2xl bg-slate-950 px-3 py-2 text-sm font-bold text-white">
+                  <div className="rounded-2xl bg-slate-950 px-3 py-2 text-xs font-bold text-white sm:text-sm">
                     {formatPrice(form.price)}
                   </div>
                 </div>
@@ -311,8 +311,8 @@ export default function BoatListingForm({
             ) : null}
           </div>
 
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
+          <div className="card p-5 sm:p-6">
+            <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Owner dashboard</div>
                 <h3 className="mt-1 text-xl font-extrabold text-slate-950">Your listings</h3>
@@ -337,11 +337,11 @@ export default function BoatListingForm({
                       </div>
                       <span className={listingStatusClass(getListingStatus(listing))}>{getListingStatus(listing)}</span>
                     </div>
-                    <div className="mt-3 flex gap-2">
-                      <button type="button" onClick={() => onViewListing(listing)} className="btn-ghost">
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                      <button type="button" onClick={() => onViewListing(listing)} className="btn-ghost justify-start sm:justify-center">
                         <Eye className="h-4 w-4" /> View
                       </button>
-                      <button type="button" onClick={() => onEditListing(listing)} className="btn-ghost">
+                      <button type="button" onClick={() => onEditListing(listing)} className="btn-ghost justify-start sm:justify-center">
                         <PencilLine className="h-4 w-4" /> Edit
                       </button>
                     </div>

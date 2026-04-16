@@ -41,8 +41,10 @@ import {
 
 import BookingsPanel from "../components/BookingsPanel";
 import BoatListingForm from "../components/BoatListingForm";
+import BoatMediaGallery from "../components/BoatMediaGallery";
 import ConfirmDialog from "../components/ConfirmDialog";
 import DatePicker from "../components/DatePicker";
+import MediaLightbox from "../components/MediaLightbox";
 import MessagingWorkspace from "../components/MessagingWorkspace";
 import OwnerPayoutCard from "../components/OwnerPayoutCard";
 import StatusBanner from "../components/StatusBanner";
@@ -65,9 +67,10 @@ import { uploadImagesToCloudinary, uploadMessageAttachmentToCloudinary } from ".
 import {
   canBoatAcceptBookings,
   getBoatCoverImage,
-  getBoatGalleryImages,
+  getBoatGalleryMedia,
   getListingStatus,
   isBoatVisibleToMarketplace,
+  sanitizeMediaItems,
   normalizeBoatPayload,
   sanitizeAmenityList,
   validateBoatForm,
@@ -81,11 +84,11 @@ function AuthModal({ onClose, onGoogle, onEmailAuth }) {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-3xl border border-white/60 bg-white p-6 shadow-2xl">
+      <div className="w-full max-w-md rounded-3xl border border-white/60 bg-white p-5 shadow-2xl sm:p-6">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Account access</div>
-            <h3 className="mt-1 text-2xl font-extrabold text-slate-950">
+            <h3 className="mt-1 text-xl font-extrabold text-slate-950 sm:text-2xl">
               {mode === "login" ? "Welcome back" : "Create your account"}
             </h3>
           </div>
@@ -195,6 +198,7 @@ export default function MarketplaceApp() {
   const [boats, setBoats] = useState([]);
   const [selectedBoat, setSelectedBoat] = useState(null);
   const [activeGalleryIndex, setActiveGalleryIndex] = useState(0);
+  const [isMediaViewerOpen, setIsMediaViewerOpen] = useState(false);
   const [locationFilter, setLocationFilter] = useState("All Locations");
 
   const [selectedDate, setSelectedDate] = useState("");
@@ -260,6 +264,7 @@ export default function MarketplaceApp() {
 
   useEffect(() => {
     setActiveGalleryIndex(0);
+    setIsMediaViewerOpen(false);
   }, [selectedBoat?.id]);
 
   useEffect(() => {
@@ -826,24 +831,33 @@ export default function MarketplaceApp() {
     setUploading(true);
 
     try {
-      const uploadedImages = await uploadImagesToCloudinary(activeListingFiles);
+      const uploadedMedia = await uploadImagesToCloudinary(activeListingFiles);
       const ownerProfileForListing = {
         uid: currentUser.uid,
         email: currentUser.email || "",
         displayName: userProfile?.displayName || currentUser.displayName || "Owner",
       };
 
-      const payload = normalizeBoatPayload(activeListingForm, uploadedImages, ownerProfileForListing, stripeConnect || {});
-      const existingImages = editingBoat?.imageUrls || [];
-      const mergedImageUrls =
+      const payload = normalizeBoatPayload(activeListingForm, uploadedMedia, ownerProfileForListing, stripeConnect || {});
+      const existingMediaItems =
         mode === "edit"
-          ? Array.from(new Set([...(Array.isArray(existingImages) ? existingImages : []), ...payload.imageUrls]))
-          : payload.imageUrls;
+          ? getBoatGalleryMedia(editingBoat).filter((item) => item.url && item.url !== DEFAULT_BOAT_IMAGE)
+          : [];
+      const mergedMediaItems =
+        mode === "edit"
+          ? sanitizeMediaItems([...(Array.isArray(existingMediaItems) ? existingMediaItems : []), ...payload.mediaItems])
+          : payload.mediaItems;
+      const mergedImageUrls = mergedMediaItems.filter((item) => item.type === "image").map((item) => item.url);
+      const coverMedia = mergedMediaItems.find((item) => item.type === "image") || mergedMediaItems.find((item) => item.type === "video");
 
       const finalPayload = {
         ...payload,
+        mediaItems: mergedMediaItems,
         imageUrls: mergedImageUrls,
-        imageUrl: mergedImageUrls[0] || payload.imageUrl || DEFAULT_BOAT_IMAGE,
+        imageUrl:
+          coverMedia?.type === "video"
+            ? coverMedia.thumbnailUrl || payload.imageUrl || DEFAULT_BOAT_IMAGE
+            : coverMedia?.url || payload.imageUrl || DEFAULT_BOAT_IMAGE,
         rating: editingBoat?.rating || 0,
         reviews: editingBoat?.reviews || 0,
         updatedAt: serverTimestamp(),
@@ -954,9 +968,25 @@ export default function MarketplaceApp() {
   };
 
   const featuredBoats = filteredBoats.slice(0, 3);
-  const selectedBoatGallery = getBoatGalleryImages(selectedBoat);
+  const selectedBoatGalleryMedia = getBoatGalleryMedia(selectedBoat);
   const selectedBoatSlots = buildSlotsFromRules(selectedBoat?.availabilityRules || {});
   const availableSlotsForSelectedDate = selectedBoatSlots.filter((slot) => !bookedSlotsForDate.includes(slot));
+
+  useEffect(() => {
+    if (!selectedBoatGalleryMedia.length) return;
+    if (activeGalleryIndex <= selectedBoatGalleryMedia.length - 1) return;
+    setActiveGalleryIndex(0);
+  }, [activeGalleryIndex, selectedBoatGalleryMedia.length]);
+
+  const goToNextMedia = () => {
+    if (!selectedBoatGalleryMedia.length) return;
+    setActiveGalleryIndex((current) => (current + 1) % selectedBoatGalleryMedia.length);
+  };
+
+  const goToPreviousMedia = () => {
+    if (!selectedBoatGalleryMedia.length) return;
+    setActiveGalleryIndex((current) => (current - 1 + selectedBoatGalleryMedia.length) % selectedBoatGalleryMedia.length);
+  };
 
   if (loading) {
     return (
@@ -986,17 +1016,17 @@ export default function MarketplaceApp() {
       />
 
       <header className="header-glass">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between gap-4">
-            <button type="button" className="flex items-center gap-3" onClick={() => setView("landing")}>
-              <div className="gradient-blue rounded-2xl p-2.5 shadow-blue">
-                <Anchor className="h-6 w-6 text-white" />
+        <div className="max-w-7xl mx-auto px-4 py-3 sm:py-4">
+          <div className="flex items-center justify-between gap-3 sm:gap-4">
+            <button type="button" className="flex items-center gap-2.5 sm:gap-3" onClick={() => setView("landing")}>
+              <div className="gradient-blue rounded-2xl p-2.5 shadow-blue sm:p-2.5">
+                <Anchor className="h-5 w-5 text-white sm:h-6 sm:w-6" />
               </div>
               <div className="text-left">
-                <div className="text-2xl font-bold bg-gradient-to-r from-blue-700 to-cyan-600 bg-clip-text text-transparent">
+                <div className="text-xl font-bold bg-gradient-to-r from-blue-700 to-cyan-600 bg-clip-text text-transparent sm:text-2xl">
                   GTA Charter
                 </div>
-                <div className="text-xs text-slate-600">Lake Ontario Adventures</div>
+                <div className="text-[11px] text-slate-600 sm:text-xs">Lake Ontario Adventures</div>
               </div>
             </button>
 
@@ -1054,7 +1084,7 @@ export default function MarketplaceApp() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-6 pb-24 md:pb-10">
+      <main className="max-w-7xl mx-auto px-4 py-5 pb-24 sm:py-6 md:pb-10">
         {feedback ? (
           <div className="mb-6">
             <StatusBanner tone={feedback.tone} title={feedback.title} onDismiss={() => setFeedback(null)}>
@@ -1064,25 +1094,25 @@ export default function MarketplaceApp() {
         ) : null}
 
         {view === "landing" ? (
-          <div className="space-y-10">
-            <section className="relative overflow-hidden rounded-3xl border border-white/60 bg-[radial-gradient(1200px_circle_at_20%_20%,rgba(56,189,248,0.22),transparent_55%),radial-gradient(900px_circle_at_80%_30%,rgba(37,99,235,0.18),transparent_55%),linear-gradient(to_bottom,rgba(255,255,255,0.85),rgba(255,255,255,0.55))] shadow-strong">
-              <div className="relative px-6 py-14 md:px-12 md:py-20">
+          <div className="mobile-section-gap space-y-8 sm:space-y-10">
+            <section className="relative overflow-hidden rounded-[28px] border border-white/60 bg-[radial-gradient(1200px_circle_at_20%_20%,rgba(56,189,248,0.22),transparent_55%),radial-gradient(900px_circle_at_80%_30%,rgba(37,99,235,0.18),transparent_55%),linear-gradient(to_bottom,rgba(255,255,255,0.85),rgba(255,255,255,0.55))] shadow-strong sm:rounded-3xl">
+              <div className="relative px-5 py-10 sm:px-6 sm:py-14 md:px-12 md:py-20">
                 <div className="max-w-3xl">
                   <p className="inline-flex items-center gap-2 text-xs font-semibold tracking-wide uppercase text-slate-600">
                     <span className="h-2 w-2 rounded-full bg-emerald-500" />
                     Premium local marketplace
                   </p>
-                  <h1 className="mt-4 text-4xl font-extrabold tracking-tight text-slate-950 md:text-6xl">
+                  <h1 className="mobile-heading-tight mt-4 text-[2.3rem] font-extrabold tracking-tight text-slate-950 sm:text-4xl md:text-6xl">
                     Charter boats with more
                     <span className="bg-gradient-to-r from-blue-700 via-cyan-600 to-emerald-500 bg-clip-text text-transparent">
                       {" "}trust, clarity, and polish
                     </span>
                   </h1>
-                  <p className="mt-4 text-base leading-relaxed text-slate-600 md:text-lg">
+                  <p className="mobile-subtle-copy mt-4 max-w-2xl text-[15px] leading-relaxed text-slate-600 sm:text-base md:text-lg">
                     Browse premium GTA charters, message owners directly, and book securely through a production-style marketplace flow.
                   </p>
 
-                  <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                  <div className="mt-7 flex flex-col gap-3 sm:mt-8 sm:flex-row">
                     <button onClick={() => setView("browse")} className="btn btn-primary btn-lg">
                       Browse charters
                     </button>
@@ -1097,14 +1127,14 @@ export default function MarketplaceApp() {
                     )}
                   </div>
 
-                  <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4">
+                  <div className="mt-7 grid grid-cols-1 gap-3 sm:mt-8 sm:grid-cols-2 sm:gap-4 md:grid-cols-4">
                     {[
                       { key: "Secure checkout", value: "Stripe marketplace flow" },
                       { key: "Owner payouts", value: "Connect Express onboarding" },
                       { key: "Live inbox", value: "Clear message threads" },
                       { key: "Reliable booking", value: "Slot validation + holds" },
                     ].map((item) => (
-                      <div key={item.key} className="rounded-2xl border border-white/60 bg-white/70 p-4 shadow-soft">
+                      <div key={item.key} className="mobile-surface rounded-2xl border border-white/60 bg-white/70 p-3.5 shadow-soft sm:p-4">
                         <div className="text-sm font-semibold text-slate-900">{item.key}</div>
                         <div className="mt-1 text-xs text-slate-600">{item.value}</div>
                       </div>
@@ -1115,18 +1145,18 @@ export default function MarketplaceApp() {
             </section>
 
             <section className="space-y-4">
-              <div className="flex items-end justify-between gap-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <h2 className="text-3xl font-extrabold tracking-tight text-slate-950">Featured charters</h2>
-                  <p className="mt-1 text-slate-600">Refined listing cards with stronger availability and booking confidence.</p>
+                  <h2 className="mobile-heading-tight text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">Featured charters</h2>
+                  <p className="mt-1 text-sm leading-relaxed text-slate-600 sm:text-base">Refined listing cards with stronger availability and booking confidence.</p>
                 </div>
-                <button onClick={() => setView("browse")} className="btn btn-ghost">
+                <button onClick={() => setView("browse")} className="btn btn-ghost sm:w-auto">
                   View all
                 </button>
               </div>
 
               {featuredBoats.length === 0 ? (
-                <div className="card p-10 text-center">
+                <div className="card p-8 text-center sm:p-10">
                   <Anchor className="mx-auto mb-4 h-14 w-14 text-slate-300" />
                   <div className="text-lg font-bold text-slate-900">No live charters yet</div>
                   <div className="mt-1 text-slate-600">Switch to owner mode to create the first polished listing.</div>
@@ -1135,7 +1165,7 @@ export default function MarketplaceApp() {
                 <div className="lux-msg-grid">
                   {featuredBoats.map((boat) => (
                     <button key={boat.id} type="button" onClick={() => openBoatDetail(boat)} className="card overflow-hidden text-left">
-                      <div className="relative h-52 overflow-hidden">
+                      <div className="relative h-48 overflow-hidden sm:h-52">
                         <img src={getBoatCoverImage(boat)} alt={boat.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/10 to-transparent" />
                         <div className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-slate-800">
@@ -1145,8 +1175,8 @@ export default function MarketplaceApp() {
                           {formatPrice(boat.price)}
                         </div>
                         <div className="absolute bottom-4 left-4 right-4 text-white">
-                          <div className="text-xl font-extrabold">{boat.name}</div>
-                          <div className="mt-2 flex items-center justify-between text-sm text-white/90">
+                          <div className="text-lg font-extrabold sm:text-xl">{boat.name}</div>
+                          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm text-white/90">
                             <span className="inline-flex items-center gap-1">
                               <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
                               {boat.rating || 0} ({boat.reviews || 0})
@@ -1169,8 +1199,8 @@ export default function MarketplaceApp() {
         {view === "browse" ? (
           <div>
             <div className="mb-6">
-              <h2 className="text-3xl font-bold text-slate-900">Discover your next charter</h2>
-              <p className="mt-1 text-slate-600">Browse only live listings with clearer pricing, messaging, and booking readiness.</p>
+              <h2 className="mobile-heading-tight text-2xl font-bold text-slate-900 sm:text-3xl">Discover your next charter</h2>
+              <p className="mt-1 text-sm leading-relaxed text-slate-600 sm:text-base">Browse only live listings with clearer pricing, messaging, and booking readiness.</p>
             </div>
 
             <div className="mb-6 tab-scroll">
@@ -1186,25 +1216,25 @@ export default function MarketplaceApp() {
             </div>
 
             {filteredBoats.length === 0 ? (
-              <div className="card p-16 text-center">
+              <div className="card p-10 text-center sm:p-16">
                 <Anchor className="mx-auto mb-4 h-16 w-16 text-slate-300" />
                 <h3 className="text-xl font-bold text-slate-700">No live boats available yet</h3>
                 <p className="mt-2 text-slate-500">Owners can save drafts first, then publish live once payouts and details are ready.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-5 sm:gap-6 md:grid-cols-2 lg:grid-cols-3 lg:gap-8">
                 {filteredBoats.map((boat) => (
                   <button key={boat.id} type="button" onClick={() => openBoatDetail(boat)} className="card-premium overflow-hidden text-left">
-                    <div className="relative h-56 overflow-hidden">
+                    <div className="relative h-48 overflow-hidden sm:h-52 lg:h-56">
                       <img src={getBoatCoverImage(boat)} alt={boat.name} className="h-full w-full object-cover" />
                       <div className="absolute right-4 top-4 rounded-full bg-white/90 px-3 py-1 text-xs font-black text-slate-900">
                         {formatPrice(boat.price)}
                       </div>
                     </div>
-                    <div className="p-5">
+                    <div className="p-4 sm:p-5">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <div className="text-xl font-bold text-slate-900">{boat.name}</div>
+                          <div className="text-lg font-bold text-slate-900 sm:text-xl">{boat.name}</div>
                           <div className="mt-1 flex items-center gap-2 text-sm text-slate-600">
                             <MapPin className="h-4 w-4" />
                             {boat.location}
@@ -1212,7 +1242,7 @@ export default function MarketplaceApp() {
                         </div>
                         <span className="badge badge-emerald">{formatStatusLabel(getListingStatus(boat))}</span>
                       </div>
-                      <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600 sm:mt-4">
                         <span className="inline-flex items-center gap-1">
                           <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
                           {boat.rating || 0} ({boat.reviews || 0})
@@ -1233,12 +1263,12 @@ export default function MarketplaceApp() {
 
         {view === "boat-detail" && selectedBoat ? (
           <div>
-            <button onClick={() => setView("browse")} className="mb-4 btn-ghost">
+            <button onClick={() => setView("browse")} className="mb-3 btn-ghost sm:mb-4 sm:w-auto">
               Back to browse
             </button>
 
             {currentUserType === "owner" && selectedBoat.ownerId === currentUser?.uid ? (
-              <div className="mb-4 flex flex-wrap gap-3">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-wrap">
                 <button
                   onClick={() => {
                     setEditingBoat(boatToFormState(selectedBoat));
@@ -1246,14 +1276,14 @@ export default function MarketplaceApp() {
                     setListingErrors({});
                     setView("edit-boat");
                   }}
-                  className="btn-secondary text-sm"
+                  className="btn-secondary text-sm sm:w-auto"
                 >
                   Edit listing
                 </button>
-                <button onClick={() => setConfirmArchiveOpen(true)} className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-bold text-white hover:bg-red-700">
+                <button onClick={() => setConfirmArchiveOpen(true)} className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-bold text-white hover:bg-red-700 sm:w-auto">
                   Archive listing
                 </button>
-                <div className="min-w-[280px] flex-1">
+                <div className="w-full min-w-0 flex-1">
                   <OwnerPayoutCard
                     compact
                     stripeConnect={stripeConnect}
@@ -1266,63 +1296,32 @@ export default function MarketplaceApp() {
               </div>
             ) : null}
 
-            <div className="overflow-hidden rounded-3xl border-2 border-slate-200 bg-white shadow-strong">
-              <img src={getBoatCoverImage(selectedBoat)} alt={selectedBoat.name} className="h-64 w-full object-cover md:h-96" />
+            <div className="overflow-hidden rounded-[28px] border-2 border-slate-200 bg-white shadow-strong sm:rounded-3xl">
+              <div className="border-b border-sky-100 bg-[linear-gradient(180deg,rgba(248,252,255,0.92),rgba(239,246,255,0.66))] p-3 sm:p-4 md:p-5">
+                <BoatMediaGallery
+                  boatName={selectedBoat.name}
+                  mediaItems={selectedBoatGalleryMedia}
+                  activeIndex={activeGalleryIndex}
+                  onSelect={setActiveGalleryIndex}
+                  onOpen={(index) => {
+                    setActiveGalleryIndex(index);
+                    setIsMediaViewerOpen(true);
+                  }}
+                  onNext={goToNextMedia}
+                  onPrevious={goToPreviousMedia}
+                />
+              </div>
 
-              {selectedBoatGallery.length > 1 ? (
-                <div className="border-b border-sky-100 bg-white p-4">
-                  <div className="gallery">
-                    <div className="gallery-main">
-                      <img src={selectedBoatGallery[activeGalleryIndex]} alt={`${selectedBoat.name} gallery`} />
-                      <button
-                        type="button"
-                        className="gallery-nav gallery-prev"
-                        onClick={() =>
-                          setActiveGalleryIndex((current) => (current - 1 + selectedBoatGallery.length) % selectedBoatGallery.length)
-                        }
-                        aria-label="Previous image"
-                      >
-                        {"<"}
-                      </button>
-                      <button
-                        type="button"
-                        className="gallery-nav gallery-next"
-                        onClick={() => setActiveGalleryIndex((current) => (current + 1) % selectedBoatGallery.length)}
-                        aria-label="Next image"
-                      >
-                        {">"}
-                      </button>
-                      <div className="gallery-count">
-                        {activeGalleryIndex + 1} / {selectedBoatGallery.length}
-                      </div>
-                    </div>
-
-                    <div className="gallery-thumbs">
-                      {selectedBoatGallery.map((image, index) => (
-                        <button
-                          key={`${image}-${index}`}
-                          type="button"
-                          onClick={() => setActiveGalleryIndex(index)}
-                          className={`gallery-thumb ${index === activeGalleryIndex ? "is-active" : ""}`}
-                        >
-                          <img src={image} alt="" />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="p-6 md:p-8">
+              <div className="p-4 sm:p-6 md:p-8">
                 <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h2 className="text-3xl font-bold text-slate-900">{selectedBoat.name}</h2>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+                      <h2 className="mobile-heading-tight text-2xl font-bold text-slate-900 sm:text-3xl">{selectedBoat.name}</h2>
                       <span className={`badge ${selectedBoat.ownerStripeReady ? "badge-emerald" : "badge-amber"}`}>
                         {selectedBoat.ownerStripeReady ? "Instant booking enabled" : "Payout setup pending"}
                       </span>
                     </div>
-                    <div className="mt-3 flex flex-wrap items-center gap-4 text-slate-600">
+                    <div className="mobile-inline-meta mt-3 text-sm text-slate-600 sm:text-base">
                       <span className="inline-flex items-center gap-2">
                         <MapPin className="h-5 w-5" />
                         {selectedBoat.location}
@@ -1338,9 +1337,9 @@ export default function MarketplaceApp() {
                     </div>
                   </div>
 
-                  <div className="gradient-blue rounded-2xl px-6 py-5 text-white shadow-blue">
+                  <div className="gradient-blue rounded-2xl px-5 py-4 text-white shadow-blue sm:px-6 sm:py-5">
                     <div className="text-sm opacity-90">Charter price</div>
-                    <div className="text-3xl font-bold">{formatPrice(selectedBoat.price)}</div>
+                    <div className="text-2xl font-bold sm:text-3xl">{formatPrice(selectedBoat.price)}</div>
                     <div className="text-sm opacity-90">for {selectedBoat.bookingDurationHours || selectedBoat.availabilityRules?.slotLength || 4} hours</div>
                   </div>
                 </div>
@@ -1379,7 +1378,7 @@ export default function MarketplaceApp() {
                         <div className="space-y-3">
                           {selectedBoatReviews.slice(0, 3).map((review) => (
                             <div key={review.id} className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
-                              <div className="flex items-center justify-between gap-3">
+                              <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                                 <div className="font-semibold text-slate-900">{review.userName || "Passenger"}</div>
                                 <div className="text-sm text-slate-500">{formatConversationTime(review.createdAt)}</div>
                               </div>
@@ -1427,7 +1426,7 @@ export default function MarketplaceApp() {
                     </div>
                   </div>
 
-                  <div className="rounded-3xl border border-sky-100 bg-sky-50/70 p-5">
+                  <div className="mobile-booking-panel rounded-3xl border border-sky-100 bg-sky-50/70 p-4 sm:p-5">
                     <h3 className="text-xl font-bold text-slate-900">Book this charter</h3>
                     <p className="mt-1 text-sm text-slate-600">Availability updates live so stale or double-booked slots get blocked automatically.</p>
 
@@ -1437,7 +1436,7 @@ export default function MarketplaceApp() {
                       </div>
                     ) : null}
 
-                    <div className="mt-5 space-y-5">
+                    <div className="mt-5 space-y-4 sm:space-y-5">
                       <div>
                         <label className="label">Select date</label>
                         <DatePicker
@@ -1454,13 +1453,13 @@ export default function MarketplaceApp() {
                         <label className="label">Available time slots</label>
                         {selectedDate ? (
                           availableSlotsForSelectedDate.length ? (
-                            <div className="space-y-2">
+                            <div className="space-y-2.5">
                               {availableSlotsForSelectedDate.map((slot) => (
                                 <button
                                   key={slot}
                                   type="button"
                                   onClick={() => setSelectedSlot(slot)}
-                                  className={`w-full rounded-2xl px-4 py-3 font-semibold transition ${
+                                  className={`w-full rounded-2xl px-4 py-3.5 text-left font-semibold transition ${
                                     selectedSlot === slot
                                       ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md"
                                       : "border-2 border-sky-200 bg-white text-slate-700 hover:border-blue-400"
@@ -1578,14 +1577,14 @@ export default function MarketplaceApp() {
         {view === "bookings" && currentUser ? <BookingsPanel bookings={myBookings} onBack={() => setView("browse")} /> : null}
 
         {currentUser && currentUserType !== "owner" && ["list-boat", "edit-boat"].includes(view) ? (
-          <div className="card p-10 text-center">
+          <div className="card p-8 text-center sm:p-10">
             <h3 className="text-xl font-bold text-slate-900">Switch to owner mode</h3>
             <p className="mt-2 text-slate-600">Use the account type switcher in the header to access the owner dashboard and Stripe payout setup.</p>
           </div>
         ) : null}
 
         {!currentUser && ["messages", "bookings", "list-boat", "edit-boat"].includes(view) ? (
-          <div className="card p-10 text-center">
+          <div className="card p-8 text-center sm:p-10">
             <h3 className="text-xl font-bold text-slate-900">Sign in to continue</h3>
             <p className="mt-2 text-slate-600">Marketplace tools like bookings, messages, and owner dashboards require an account.</p>
             <div className="mt-5">
@@ -1595,11 +1594,22 @@ export default function MarketplaceApp() {
             </div>
           </div>
         ) : null}
+
+        <MediaLightbox
+          open={isMediaViewerOpen}
+          mediaItems={selectedBoatGalleryMedia}
+          activeIndex={activeGalleryIndex}
+          title={selectedBoat?.name || "Boat media"}
+          onClose={() => setIsMediaViewerOpen(false)}
+          onNext={goToNextMedia}
+          onPrevious={goToPreviousMedia}
+          onSelect={setActiveGalleryIndex}
+        />
       </main>
 
-      <footer className="mt-16 border-t border-white/60 bg-white/60 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-4 py-12">
-          <div className="grid gap-10 md:grid-cols-4">
+      <footer className="mt-14 border-t border-white/60 bg-white/60 backdrop-blur-md sm:mt-16">
+        <div className="max-w-7xl mx-auto px-4 py-10 sm:py-12">
+          <div className="grid gap-8 sm:gap-10 md:grid-cols-4">
             <div className="space-y-3">
               <div className="flex items-center gap-3">
                 <div className="rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-600 p-2 shadow-soft">

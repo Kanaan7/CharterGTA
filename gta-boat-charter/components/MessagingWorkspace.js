@@ -39,28 +39,30 @@ export default function MessagingWorkspace({
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-slate-900">Messages</h2>
-          <p className="mt-1 text-slate-600">Keep booking questions and logistics in one polished thread.</p>
+          <h2 className="mobile-heading-tight text-2xl font-bold text-slate-900 sm:text-3xl">Messages</h2>
+          <p className="mobile-subtle-copy mt-1 text-sm leading-relaxed text-slate-600 sm:text-base">
+            Keep booking questions and logistics in one polished thread.
+          </p>
         </div>
 
-        <button onClick={onBack} className="btn-secondary text-sm">
+        <button onClick={onBack} className="btn-secondary text-sm sm:w-auto">
           Back to browse
         </button>
       </div>
 
-      <div className="lux-msg-grid">
+      <div className="lux-msg-grid mobile-stack-gap">
         <div className="card-premium overflow-hidden lux-msg-list md:col-span-1">
-          <div className="gradient-blue p-5 text-white">
+          <div className="gradient-blue p-4 sm:p-5 text-white">
             <h3 className="text-lg font-bold">Conversations</h3>
-            <p className="mt-1 text-sm text-white/80">Recent charter chats stay pinned up top.</p>
+            <p className="mt-1 text-sm leading-relaxed text-white/80">Recent charter chats stay pinned up top.</p>
           </div>
 
-          <div className="max-h-[680px] divide-y divide-sky-100 overflow-y-auto">
+          <div className="max-h-[340px] divide-y divide-sky-100 overflow-y-auto sm:max-h-[680px]">
             {sortedConversations.length === 0 ? (
-              <div className="p-8 text-center">
-                <MessageCircle className="mx-auto mb-3 h-12 w-12 text-slate-300" />
+              <div className="p-6 text-center sm:p-8">
+                <MessageCircle className="mx-auto mb-3 h-10 w-10 text-slate-300 sm:h-12 sm:w-12" />
                 <p className="font-semibold text-slate-700">No conversations yet</p>
                 <p className="mt-1 text-sm text-slate-500">Message an owner from a listing to start planning.</p>
               </div>
@@ -76,7 +78,7 @@ export default function MessagingWorkspace({
                     key={conversation.id}
                     type="button"
                     onClick={() => onSelectConversation(conversation)}
-                    className={`w-full px-4 py-4 text-left transition ${
+                    className={`w-full px-4 py-3.5 text-left transition sm:px-4 sm:py-4 ${
                       isActive ? "border-l-4 border-blue-600 bg-blue-50" : "hover:bg-slate-50"
                     }`}
                   >
@@ -101,15 +103,15 @@ export default function MessagingWorkspace({
 
         <div className="card-premium overflow-hidden lux-msg-chat md:col-span-2">
           {selectedConversation ? (
-            <div className="flex h-[680px] flex-col">
-              <div className="gradient-blue p-5 text-white">
+            <div className="flex h-[580px] flex-col sm:h-[680px]">
+              <div className="gradient-blue p-4 sm:p-5 text-white">
                 <h3 className="text-lg font-bold">{selectedConversation.boatName || "Conversation"}</h3>
-                <p className="mt-1 text-sm text-white/80">
+                <p className="mt-1 text-sm leading-relaxed text-white/80">
                   Respond quickly so passengers feel confident before they book.
                 </p>
               </div>
 
-              <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto bg-slate-50/70 p-4">
+              <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto bg-slate-50/70 p-3 sm:space-y-4 sm:p-4">
                 {messages.length === 0 ? (
                   <div className="py-12 text-center">
                     <MessageCircle className="mx-auto mb-3 h-12 w-12 text-slate-300" />
@@ -121,7 +123,7 @@ export default function MessagingWorkspace({
                     const isMine = message.senderId === currentUser?.uid;
                     return (
                       <div key={message.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-                        <div className={`max-w-[85%] md:max-w-[65%] ${isMine ? "items-end" : "items-start"} flex flex-col gap-1`}>
+                        <div className={`max-w-[90%] sm:max-w-[85%] md:max-w-[65%] ${isMine ? "items-end" : "items-start"} flex flex-col gap-1.5`}>
                           {!isMine ? (
                             <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                               {message.senderName || "User"}
@@ -129,7 +131,7 @@ export default function MessagingWorkspace({
                           ) : null}
 
                           <div
-                            className={`rounded-3xl px-4 py-3 shadow-sm ${
+                            className={`rounded-[22px] px-3.5 py-3 shadow-sm sm:rounded-3xl sm:px-4 sm:py-3 ${
                               isMine
                                 ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white"
                                 : "border border-slate-200 bg-white text-slate-900"
@@ -153,14 +155,14 @@ export default function MessagingWorkspace({
                 )}
               </div>
 
-              <div className="border-t border-sky-100 bg-white p-4">
+              <div className="border-t border-sky-100 bg-white p-3 sm:p-4">
                 {messageError ? (
                   <div className="mb-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                     {messageError}
                   </div>
                 ) : null}
 
-                <div className="flex items-end gap-2">
+                <div className="flex items-end gap-2 sm:gap-3">
                   <input
                     type="file"
                     accept="image/*"
@@ -193,7 +195,7 @@ export default function MessagingWorkspace({
                     ) : null}
 
                     <textarea
-                      rows={attachmentPreview ? 2 : 1}
+                      rows={attachmentPreview ? 2 : 2}
                       value={messageInput}
                       onChange={(event) => onMessageInputChange(event.target.value)}
                       onKeyDown={(event) => {
@@ -203,14 +205,14 @@ export default function MessagingWorkspace({
                         }
                       }}
                       placeholder="Type a message..."
-                      className="w-full rounded-2xl border border-sky-200 bg-white/90 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full rounded-2xl border border-sky-200 bg-white/90 px-4 py-3.5 text-[16px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
 
                   <button
                     type="button"
                     onClick={onSendMessage}
-                    className="rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-600 p-3 text-white shadow-md transition hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-600 p-3.5 text-white shadow-md transition hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
                     disabled={sendingMessage}
                     aria-label="Send message"
                   >
@@ -220,7 +222,7 @@ export default function MessagingWorkspace({
               </div>
             </div>
           ) : (
-            <div className="flex h-[680px] items-center justify-center">
+            <div className="flex h-[480px] items-center justify-center sm:h-[680px]">
               <div className="max-w-sm text-center">
                 <MessageCircle className="mx-auto mb-4 h-16 w-16 text-slate-300" />
                 <h3 className="text-xl font-bold text-slate-800">Select a conversation</h3>

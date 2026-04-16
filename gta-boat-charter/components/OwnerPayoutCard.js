@@ -42,26 +42,26 @@ export default function OwnerPayoutCard({
   ].slice(0, 3);
 
   return (
-    <div className="space-y-3 rounded-3xl border border-sky-100 bg-gradient-to-br from-white to-sky-50/80 p-5 shadow-sm">
+    <div className="space-y-3 rounded-3xl border border-sky-100 bg-gradient-to-br from-white to-sky-50/80 p-4 shadow-sm sm:p-5">
       <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Owner payouts</div>
           <h3 className="mt-1 text-xl font-extrabold text-slate-950">
             {compact ? "Stripe Connect status" : "Marketplace payout setup"}
           </h3>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm leading-relaxed text-slate-600">
             {compact
               ? "Keep your connected payout account in good standing so bookings stay enabled."
               : "This marketplace uses Stripe Connect Express for onboarding, destination charges, and owner payouts."}
           </p>
         </div>
 
-        <div className="flex gap-2">
-          <button type="button" onClick={onRefresh} className="btn-ghost" disabled={loading}>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button type="button" onClick={onRefresh} className="btn-ghost justify-center sm:justify-start" disabled={loading}>
             Refresh
           </button>
           {stripeConnect?.onboardingComplete ? (
-            <button type="button" onClick={onManage} className="btn-secondary" disabled={loading}>
+            <button type="button" onClick={onManage} className="btn-secondary sm:w-auto" disabled={loading}>
               Open Stripe
             </button>
           ) : null}
@@ -76,7 +76,7 @@ export default function OwnerPayoutCard({
         <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white/80 p-4 md:grid-cols-3">
           <div>
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Account</div>
-            <div className="mt-1 text-sm font-semibold text-slate-900">{stripeConnect.accountId}</div>
+            <div className="mt-1 break-all text-sm font-semibold text-slate-900">{stripeConnect.accountId}</div>
           </div>
           <div>
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Charges</div>
