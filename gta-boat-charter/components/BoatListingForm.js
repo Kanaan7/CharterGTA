@@ -32,6 +32,30 @@ export default function BoatListingForm({
 }) {
   const slotPreview = buildSlotsFromRules(form);
   const isEdit = mode === "edit";
+  const activeListings = ownerListings.filter((listing) => getListingStatus(listing) !== "archived");
+  const archivedListings = ownerListings.filter((listing) => getListingStatus(listing) === "archived");
+
+  const renderListingRow = (listing) => (
+    <div key={listing.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="truncate font-bold text-slate-900">{listing.name}</div>
+          <div className="mt-1 text-sm text-slate-500">
+            {listing.location} - {formatPrice(listing.price)}
+          </div>
+        </div>
+        <span className={listingStatusClass(getListingStatus(listing))}>{getListingStatus(listing)}</span>
+      </div>
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+        <button type="button" onClick={() => onViewListing(listing)} className="btn-ghost justify-start sm:justify-center">
+          <Eye className="h-4 w-4" /> View
+        </button>
+        <button type="button" onClick={() => onEditListing(listing)} className="btn-ghost justify-start sm:justify-center">
+          <PencilLine className="h-4 w-4" /> Edit
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="mobile-section-gap space-y-6">
@@ -331,7 +355,10 @@ export default function BoatListingForm({
                 <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Owner dashboard</div>
                 <h3 className="mt-1 text-xl font-extrabold text-slate-950">Your listings</h3>
               </div>
-              <div className="badge badge-blue">{ownerListings.length} total</div>
+              <div className="flex flex-wrap justify-end gap-2">
+                <div className="badge badge-blue">{activeListings.length} active</div>
+                {archivedListings.length ? <div className="badge">{archivedListings.length} archived</div> : null}
+              </div>
             </div>
 
             {ownerListings.length === 0 ? (
@@ -340,32 +367,27 @@ export default function BoatListingForm({
               </div>
             ) : (
               <div className="mt-4 space-y-3">
-                {ownerListings.slice(0, 5).map((listing) => (
-                  <div key={listing.id} className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="truncate font-bold text-slate-900">{listing.name}</div>
-                        <div className="mt-1 text-sm text-slate-500">
-                          {listing.location} - {formatPrice(listing.price)}
-                        </div>
-                      </div>
-                      <span className={listingStatusClass(getListingStatus(listing))}>{getListingStatus(listing)}</span>
-                    </div>
-                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                      <button type="button" onClick={() => onViewListing(listing)} className="btn-ghost justify-start sm:justify-center">
-                        <Eye className="h-4 w-4" /> View
-                      </button>
-                      <button type="button" onClick={() => onEditListing(listing)} className="btn-ghost justify-start sm:justify-center">
-                        <PencilLine className="h-4 w-4" /> Edit
-                      </button>
-                    </div>
+                {activeListings.length ? (
+                  <div className="space-y-3">
+                    <div className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Active and draft</div>
+                    {activeListings.slice(0, 5).map(renderListingRow)}
                   </div>
-                ))}
+                ) : null}
 
-                {ownerListings.length > 5 ? (
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    + {ownerListings.length - 5} more listings
+                {archivedListings.length ? (
+                  <div className="space-y-3 border-t border-slate-100 pt-4">
+                    <div>
+                      <div className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Inactive</div>
+                      <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                        Archived listings are hidden from guests but kept for booking and message history.
+                      </p>
+                    </div>
+                    {archivedListings.slice(0, 3).map(renderListingRow)}
                   </div>
+                ) : null}
+
+                {ownerListings.length > activeListings.slice(0, 5).length + archivedListings.slice(0, 3).length ? (
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">More listings available in Firestore</div>
                 ) : null}
               </div>
             )}

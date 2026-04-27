@@ -99,6 +99,7 @@ service cloud.firestore {
           "imageUrls",
           "imageUrl",
           "status",
+          "archived",
           "availabilityRules",
           "bookingDurationHours",
           "bookableSlots",
@@ -127,6 +128,7 @@ service cloud.firestore {
         && request.resource.data.mediaItems is list
         && request.resource.data.imageUrls is list
         && request.resource.data.imageUrl is string
+        && (!("archived" in request.resource.data) || request.resource.data.archived is bool)
         && request.resource.data.availabilityRules is map
         && request.resource.data.bookableSlots is list
         && ["draft", "live", "archived"].hasAny([request.resource.data.status])
@@ -148,6 +150,7 @@ service cloud.firestore {
           "imageUrls",
           "imageUrl",
           "status",
+          "archived",
           "availabilityRules",
           "bookingDurationHours",
           "bookableSlots",
@@ -179,14 +182,21 @@ service cloud.firestore {
         && request.resource.data.mediaItems is list
         && request.resource.data.imageUrls is list
         && request.resource.data.imageUrl is string
+        && (!("archived" in request.resource.data) || request.resource.data.archived is bool)
         && request.resource.data.availabilityRules is map
         && request.resource.data.bookableSlots is list
         && ["draft", "live", "archived"].hasAny([request.resource.data.status])
         && request.resource.data.rating == resource.data.rating
         && request.resource.data.reviews == resource.data.reviews
-        && request.resource.data.bookedSlots == resource.data.bookedSlots
-        && request.resource.data.ownerStripeAccountId == stripeAccountId()
-        && request.resource.data.ownerStripeReady == stripeReady();
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(["bookedSlots"])
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(["ownerStripeAccountId"])
+          || request.resource.data.ownerStripeAccountId == stripeAccountId()
+        )
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(["ownerStripeReady"])
+          || request.resource.data.ownerStripeReady == stripeReady()
+        );
 
       // Listings should be archived so bookings, reviews, and conversations keep
       // a stable historical reference.

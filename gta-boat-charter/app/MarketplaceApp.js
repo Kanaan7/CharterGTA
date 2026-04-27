@@ -941,6 +941,11 @@ export default function MarketplaceApp() {
   const archiveListing = async () => {
     if (!selectedBoat?.id || !currentUser?.uid) return;
 
+    if (selectedBoat.ownerId !== currentUser.uid) {
+      showFeedback("error", "Archive blocked", "Only the listing owner can archive this boat.");
+      return;
+    }
+
     setArchiveBusy(true);
 
     try {
@@ -952,6 +957,7 @@ export default function MarketplaceApp() {
 
       await updateDoc(doc(db, "boats", selectedBoat.id), {
         status: "archived",
+        archived: true,
         bookingDisabled: true,
         archivedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -965,8 +971,15 @@ export default function MarketplaceApp() {
           : "The listing is now hidden from the public marketplace."
       );
       setConfirmArchiveOpen(false);
-      setSelectedBoat(null);
-      setView("browse");
+      setBoats((current) =>
+        current.map((boat) =>
+          boat.id === selectedBoat.id ? { ...boat, status: "archived", archived: true, bookingDisabled: true } : boat
+        )
+      );
+      setSelectedBoat((current) =>
+        current?.id === selectedBoat.id ? { ...current, status: "archived", archived: true, bookingDisabled: true } : current
+      );
+      setView("list-boat");
     } catch (error) {
       showFeedback("error", "Unable to archive listing", error.message);
     } finally {
@@ -1466,9 +1479,19 @@ export default function MarketplaceApp() {
                 >
                   Edit listing
                 </button>
-                <button onClick={() => setConfirmArchiveOpen(true)} className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-bold text-white hover:bg-red-700 sm:w-auto">
-                  Archive listing
-                </button>
+                {getListingStatus(selectedBoat) !== "archived" ? (
+                  <button
+                    onClick={() => setConfirmArchiveOpen(true)}
+                    disabled={archiveBusy}
+                    className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-bold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                  >
+                    {archiveBusy ? "Archiving..." : "Archive listing"}
+                  </button>
+                ) : (
+                  <span className="rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-bold text-slate-600 sm:w-auto">
+                    Archived
+                  </span>
+                )}
                 <div className="w-full min-w-0 flex-1">
                   <OwnerPayoutCard
                     compact
@@ -1503,8 +1526,12 @@ export default function MarketplaceApp() {
                   <div>
                     <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
                       <h2 className="mobile-heading-tight text-2xl font-bold text-slate-900 sm:text-3xl">{selectedBoat.name}</h2>
-                      <span className={`badge ${selectedBoat.ownerStripeReady ? "badge-emerald" : "badge-amber"}`}>
-                        {selectedBoat.ownerStripeReady ? "Instant booking enabled" : "Payout setup pending"}
+                      <span className={`badge ${canBoatAcceptBookings(selectedBoat) ? "badge-emerald" : "badge-amber"}`}>
+                        {getListingStatus(selectedBoat) === "archived"
+                          ? "Archived listing"
+                          : canBoatAcceptBookings(selectedBoat)
+                            ? "Instant booking enabled"
+                            : "Payout setup pending"}
                       </span>
                     </div>
                     <div className="mobile-inline-meta mt-3 text-sm text-slate-600 sm:text-base">
@@ -1616,6 +1643,12 @@ export default function MarketplaceApp() {
                     <h3 className="text-xl font-bold text-slate-900">Book this charter</h3>
                     <p className="mt-1 text-sm text-slate-600">Availability updates live so stale or double-booked slots get blocked automatically.</p>
 
+                    {getListingStatus(selectedBoat) !== "live" ? (
+                      <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+                        This listing is inactive and hidden from guest browsing.
+                      </div>
+                    ) : null}
+
                     {!selectedBoat.ownerStripeReady ? (
                       <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                         This owner is still completing Stripe payout onboarding, so checkout is temporarily disabled.
@@ -1672,7 +1705,7 @@ export default function MarketplaceApp() {
 
                       <button
                         onClick={beginCheckout}
-                        disabled={!selectedDate || !selectedSlot || checkoutBusy || !selectedBoat.ownerStripeReady}
+                        disabled={!selectedDate || !selectedSlot || checkoutBusy || !canBoatAcceptBookings(selectedBoat)}
                         className="btn btn-primary w-full py-4 text-base"
                       >
                         {checkoutBusy ? "Preparing secure checkout..." : currentUser ? `Book now - ${formatPrice(selectedBoat.price)}` : "Sign in to book"}

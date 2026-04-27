@@ -133,7 +133,7 @@ export function getBoatGalleryImages(boat) {
 }
 
 export function getListingStatus(boat) {
-  if (boat?.isDeleted) return "archived";
+  if (boat?.archived || boat?.isDeleted) return "archived";
   return boat?.status || "live";
 }
 
@@ -230,6 +230,7 @@ export function normalizeBoatPayload(formState, uploadedMedia = [], ownerProfile
     imageUrls,
     imageUrl: cover,
     status: formState?.status || "live",
+    archived: formState?.status === "archived",
     availabilityRules: rules,
     bookingDurationHours: rules.slotLength,
     bookableSlots: buildSlotsFromRules(rules),
