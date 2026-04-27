@@ -37,6 +37,12 @@ service cloud.firestore {
           .hasAny([request.auth.uid]);
     }
 
+    function isPublicBoat(data) {
+      return ["active", "live", "published"].hasAny([data.status])
+        && data.archived == false
+        && data.bookingDisabled == false;
+    }
+
     match /users/{userId} {
       allow read: if isSelf(userId);
 
@@ -83,7 +89,7 @@ service cloud.firestore {
     }
 
     match /boats/{boatId} {
-      allow read: if resource.data.status == "live"
+      allow read: if isPublicBoat(resource.data)
         || (signedIn() && resource.data.ownerId == request.auth.uid);
 
       allow create: if signedIn()
@@ -97,6 +103,7 @@ service cloud.firestore {
           "amenities",
           "mediaItems",
           "imageUrls",
+          "coverImage",
           "imageUrl",
           "status",
           "archived",
@@ -127,8 +134,10 @@ service cloud.firestore {
         && request.resource.data.amenities is list
         && request.resource.data.mediaItems is list
         && request.resource.data.imageUrls is list
+        && request.resource.data.coverImage is string
         && request.resource.data.imageUrl is string
         && (!("archived" in request.resource.data) || request.resource.data.archived is bool)
+        && (!("bookingDisabled" in request.resource.data) || request.resource.data.bookingDisabled is bool)
         && request.resource.data.availabilityRules is map
         && request.resource.data.bookableSlots is list
         && ["draft", "live", "archived"].hasAny([request.resource.data.status])
@@ -148,6 +157,7 @@ service cloud.firestore {
           "amenities",
           "mediaItems",
           "imageUrls",
+          "coverImage",
           "imageUrl",
           "status",
           "archived",
@@ -181,8 +191,10 @@ service cloud.firestore {
         && request.resource.data.amenities is list
         && request.resource.data.mediaItems is list
         && request.resource.data.imageUrls is list
+        && (!("coverImage" in request.resource.data) || request.resource.data.coverImage is string)
         && request.resource.data.imageUrl is string
         && (!("archived" in request.resource.data) || request.resource.data.archived is bool)
+        && (!("bookingDisabled" in request.resource.data) || request.resource.data.bookingDisabled is bool)
         && request.resource.data.availabilityRules is map
         && request.resource.data.bookableSlots is list
         && ["draft", "live", "archived"].hasAny([request.resource.data.status])

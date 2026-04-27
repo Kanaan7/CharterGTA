@@ -110,7 +110,7 @@ exports.handler = async (event) => {
               product_data: {
                 name: `${boatData.name || "Boat Charter"} Charter`,
                 description: `${validation.normalizedDate} - ${validation.normalizedSlot}`,
-                images: boatData.imageUrl ? [boatData.imageUrl] : undefined,
+                images: boatData.coverImage || boatData.imageUrl ? [boatData.coverImage || boatData.imageUrl] : undefined,
               },
             },
           },

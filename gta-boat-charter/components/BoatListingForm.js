@@ -18,9 +18,12 @@ export default function BoatListingForm({
   validationErrors,
   selectedFiles,
   uploading,
+  coverUploading = false,
+  coverUploadMessage = "",
   stripeConnect,
   ownerListings,
   onChange,
+  onCoverFileChange,
   onFilesChange,
   onSubmit,
   onCancel,
@@ -184,15 +187,27 @@ export default function BoatListingForm({
             </div>
 
             <div>
-              <label className="label">Cover image URL</label>
+              <label className="label">Cover image</label>
               <input
-                className="input"
-                value={form.imageUrl}
-                placeholder="https://..."
-                onChange={(event) => onChange("imageUrl", event.target.value)}
+                type="file"
+                accept="image/*"
+                className="file-input"
+                disabled={coverUploading || uploading}
+                onChange={(event) => {
+                  const file = event.target.files?.[0] || null;
+                  onCoverFileChange(file);
+                  event.target.value = "";
+                }}
               />
-              <p className="help">Use this as the hero photo for marketplace cards and checkout.</p>
-              {validationErrors.imageUrl ? <p className="field-error">{validationErrors.imageUrl}</p> : null}
+              <p className="help">Upload the main photo used for marketplace cards, listing detail, and Stripe checkout.</p>
+              {form.coverImage ? (
+                <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+                  <img src={form.coverImage} alt="Cover preview" className="h-36 w-full object-cover" />
+                </div>
+              ) : null}
+              {coverUploading ? <p className="mt-2 text-sm font-semibold text-blue-600">Uploading cover image...</p> : null}
+              {coverUploadMessage ? <p className="mt-2 text-sm font-semibold text-emerald-600">{coverUploadMessage}</p> : null}
+              {validationErrors.coverImage ? <p className="field-error">{validationErrors.coverImage}</p> : null}
             </div>
 
             <div>

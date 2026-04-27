@@ -172,12 +172,13 @@ function AuthModal({ onClose, onGoogle, onEmailAuth }) {
 function boatToFormState(boat) {
   const rules = boat?.availabilityRules || {};
   const galleryUrls = getBoatGalleryMedia(boat)
-    .filter((item) => item.url && item.url !== DEFAULT_BOAT_IMAGE && item.url !== boat?.imageUrl)
+    .filter((item) => item.url && item.url !== DEFAULT_BOAT_IMAGE && item.url !== getBoatCoverImage(boat))
     .map((item) => item.url);
 
   return createBoatFormState({
     ...boat,
     amenities: Array.isArray(boat?.amenities) ? boat.amenities.join(", ") : boat?.amenities || "",
+    coverImage: boat?.coverImage || boat?.imageUrl || "",
     mediaUrls: galleryUrls.join("\n"),
     status: boat?.status || "live",
     startHour: Number(rules.startHour ?? boat?.startHour ?? 9),
@@ -235,6 +236,8 @@ export default function MarketplaceApp() {
   const [editImageFiles, setEditImageFiles] = useState([]);
   const [listingErrors, setListingErrors] = useState({});
   const [uploading, setUploading] = useState(false);
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [coverUploadMessage, setCoverUploadMessage] = useState("");
 
   const [feedback, setFeedback] = useState(null);
   const [confirmArchiveOpen, setConfirmArchiveOpen] = useState(false);
@@ -352,7 +355,12 @@ export default function MarketplaceApp() {
   }, []);
 
   useEffect(() => {
-    const liveBoatsQuery = query(collection(db, "boats"), where("status", "==", "live"));
+    const publicBoatsQuery = query(
+      collection(db, "boats"),
+      where("archived", "==", false),
+      where("bookingDisabled", "==", false),
+      where("status", "in", ["active", "live", "published"])
+    );
     const listingMap = new Map();
     let ownerUnsubscribe = null;
 
@@ -360,8 +368,8 @@ export default function MarketplaceApp() {
       setBoats(Array.from(listingMap.values()));
     };
 
-    const liveUnsubscribe = onSnapshot(
-      liveBoatsQuery,
+    const publicUnsubscribe = onSnapshot(
+      publicBoatsQuery,
       (snapshot) => {
         snapshot.docChanges().forEach((change) => {
           if (change.type === "removed") {
@@ -372,7 +380,7 @@ export default function MarketplaceApp() {
         });
         publishListings();
       },
-      (error) => console.error("live boats snapshot error:", error)
+      (error) => console.error("public boats snapshot error:", error)
     );
 
     if (currentUser?.uid) {
@@ -394,7 +402,7 @@ export default function MarketplaceApp() {
     }
 
     return () => {
-      liveUnsubscribe();
+      publicUnsubscribe();
       if (ownerUnsubscribe) ownerUnsubscribe();
     };
   }, [currentUser?.uid]);
@@ -708,7 +716,7 @@ export default function MarketplaceApp() {
           {
             boatId: boat.id,
             boatName: boat.name,
-            boatImageUrl: boat.imageUrl || DEFAULT_BOAT_IMAGE,
+            boatImageUrl: getBoatCoverImage(boat),
             participantIds: [currentUser.uid, boat.ownerId],
             participantNames: {
               [currentUser.uid]: userProfile?.displayName || currentUser.displayName || "Passenger",
@@ -851,6 +859,41 @@ export default function MarketplaceApp() {
     }
   };
 
+  const handleCoverFileChange = async (file) => {
+    if (!file) return;
+
+    setListingErrors((current) => ({ ...current, coverImage: undefined }));
+    setCoverUploadMessage("");
+
+    if (!file.type?.startsWith("image/")) {
+      setListingErrors((current) => ({ ...current, coverImage: "Cover image must be an image file." }));
+      return;
+    }
+
+    setCoverUploading(true);
+
+    try {
+      const [uploadedCover] = await uploadImagesToCloudinary([file]);
+      const coverUrl = uploadedCover?.url || "";
+
+      if (!coverUrl) {
+        throw new Error("Cloudinary did not return an image URL.");
+      }
+
+      updateListingField("coverImage", coverUrl);
+      updateListingField("imageUrl", coverUrl);
+      setCoverUploadMessage("Upload successful.");
+    } catch (error) {
+      setListingErrors((current) => ({
+        ...current,
+        coverImage: error.message || "Cover image upload failed.",
+      }));
+      setCoverUploadMessage("");
+    } finally {
+      setCoverUploading(false);
+    }
+  };
+
   const persistListing = async (mode) => {
     if (!currentUser) {
       setShowAuthModal(true);
@@ -891,7 +934,7 @@ export default function MarketplaceApp() {
           ? sanitizeMediaItems([
               ...payload.mediaItems,
               ...(Array.isArray(existingMediaItems)
-                ? existingMediaItems.filter((item) => existingManualUrls.includes(item.url) || item.url === activeListingForm.imageUrl)
+                ? existingMediaItems.filter((item) => existingManualUrls.includes(item.url) || item.url === activeListingForm.coverImage)
                 : []),
             ])
           : payload.mediaItems;
@@ -902,10 +945,11 @@ export default function MarketplaceApp() {
         ...payload,
         mediaItems: mergedMediaItems,
         imageUrls: mergedImageUrls,
+        coverImage: payload.coverImage,
         imageUrl:
           coverMedia?.type === "video"
-            ? coverMedia.thumbnailUrl || payload.imageUrl || DEFAULT_BOAT_IMAGE
-            : coverMedia?.url || payload.imageUrl || DEFAULT_BOAT_IMAGE,
+            ? payload.coverImage || coverMedia.thumbnailUrl || DEFAULT_BOAT_IMAGE
+            : payload.coverImage || coverMedia?.url || DEFAULT_BOAT_IMAGE,
         rating: editingBoat?.rating || 0,
         reviews: editingBoat?.reviews || 0,
         updatedAt: serverTimestamp(),
@@ -926,6 +970,7 @@ export default function MarketplaceApp() {
         showFeedback("success", "Listing published", "Your boat is now available in the owner dashboard.");
         setNewBoat(createBoatFormState());
         setNewBoatImages([]);
+        setCoverUploadMessage("");
         setView("list-boat");
       }
     } catch (error) {
@@ -1748,10 +1793,13 @@ export default function MarketplaceApp() {
             form={newBoat}
             validationErrors={listingErrors}
             selectedFiles={newBoatImages}
-            uploading={uploading || stripeLoading}
+            uploading={uploading || stripeLoading || coverUploading}
+            coverUploading={coverUploading}
+            coverUploadMessage={coverUploadMessage}
             stripeConnect={stripeConnect}
             ownerListings={ownerListings}
             onChange={updateListingField}
+            onCoverFileChange={handleCoverFileChange}
             onFilesChange={handleListingFilesChange}
             onSubmit={createListing}
             onCancel={() => setView("browse")}
@@ -1762,6 +1810,7 @@ export default function MarketplaceApp() {
               setEditingBoat(boatToFormState(boat));
               setEditImageFiles([]);
               setListingErrors({});
+              setCoverUploadMessage("");
               setView("edit-boat");
             }}
             onViewListing={openBoatDetail}
@@ -1774,10 +1823,13 @@ export default function MarketplaceApp() {
             form={editingBoat}
             validationErrors={listingErrors}
             selectedFiles={editImageFiles}
-            uploading={uploading || stripeLoading}
+            uploading={uploading || stripeLoading || coverUploading}
+            coverUploading={coverUploading}
+            coverUploadMessage={coverUploadMessage}
             stripeConnect={stripeConnect}
             ownerListings={ownerListings}
             onChange={updateListingField}
+            onCoverFileChange={handleCoverFileChange}
             onFilesChange={handleListingFilesChange}
             onSubmit={saveListingEdits}
             onCancel={() => {

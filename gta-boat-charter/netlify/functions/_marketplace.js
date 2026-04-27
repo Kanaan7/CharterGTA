@@ -250,7 +250,7 @@ async function reserveBookingCheckout({
     const bookingPayload = {
       boatId,
       boatName: boatData?.name || "Boat Charter",
-      boatImageUrl: boatData?.imageUrl || DEFAULT_BOAT_IMAGE,
+      boatImageUrl: boatData?.coverImage || boatData?.imageUrl || DEFAULT_BOAT_IMAGE,
       ownerId: boatData?.ownerId || "",
       ownerName: boatData?.ownerName || "Owner",
       ownerEmail: boatData?.ownerEmail || "",

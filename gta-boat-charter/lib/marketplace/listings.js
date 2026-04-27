@@ -100,6 +100,7 @@ export function sanitizeMediaItems(items = []) {
 
 export function getBoatGalleryMedia(boat) {
   const mediaItems = sanitizeMediaItems([
+    boat?.coverImage,
     ...(Array.isArray(boat?.mediaItems) ? boat.mediaItems : []),
     ...(Array.isArray(boat?.imageUrls) ? boat.imageUrls : []),
     boat?.imageUrl,
@@ -118,6 +119,8 @@ export function getBoatGalleryMedia(boat) {
 }
 
 export function getBoatCoverImage(boat) {
+  if (isValidHttpUrl(boat?.coverImage)) return boat.coverImage;
+
   const mediaItems = getBoatGalleryMedia(boat);
   const firstImage = mediaItems.find((item) => item.type === "image");
   const firstVideo = mediaItems.find((item) => item.type === "video" && item.thumbnailUrl);
@@ -138,7 +141,7 @@ export function getListingStatus(boat) {
 }
 
 export function isBoatVisibleToMarketplace(boat) {
-  return getListingStatus(boat) === "live" && !boat?.isDeleted;
+  return ["active", "live", "published"].includes(getListingStatus(boat)) && !boat?.archived && !boat?.bookingDisabled && !boat?.isDeleted;
 }
 
 export function canBoatAcceptBookings(boat) {
@@ -174,8 +177,9 @@ export function validateBoatForm(formState) {
     errors.description = "Description should be at least 30 characters so guests know what to expect.";
   }
 
-  if (formState?.imageUrl && !isValidHttpUrl(formState.imageUrl)) {
-    errors.imageUrl = "Enter a valid image URL that starts with http or https.";
+  const coverImage = String(formState?.coverImage || formState?.imageUrl || "").trim();
+  if (formState?.status === "live" && !isValidHttpUrl(coverImage)) {
+    errors.coverImage = "Upload a cover image before publishing.";
   }
 
   const rawMediaUrlInput = String(formState?.mediaUrls || "").trim();
@@ -203,7 +207,7 @@ export function validateBoatForm(formState) {
 
 export function normalizeBoatPayload(formState, uploadedMedia = [], ownerProfile = {}, stripeConnect = {}) {
   const amenities = sanitizeAmenityList(formState?.amenities);
-  const coverUrl = String(formState?.imageUrl || "").trim();
+  const coverUrl = String(formState?.coverImage || formState?.imageUrl || "").trim();
   const manualMediaUrls = parseMediaUrlInput(formState?.mediaUrls);
   const mediaItems = sanitizeMediaItems([
     ...(coverUrl ? [{ url: coverUrl }] : []),
@@ -228,9 +232,11 @@ export function normalizeBoatPayload(formState, uploadedMedia = [], ownerProfile
     amenities,
     mediaItems,
     imageUrls,
+    coverImage: cover,
     imageUrl: cover,
     status: formState?.status || "live",
     archived: formState?.status === "archived",
+    bookingDisabled: formState?.status === "archived",
     availabilityRules: rules,
     bookingDurationHours: rules.slotLength,
     bookableSlots: buildSlotsFromRules(rules),

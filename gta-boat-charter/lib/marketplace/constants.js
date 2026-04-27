@@ -49,6 +49,7 @@ export function createBoatFormState(overrides = {}) {
     price: 200,
     description: "",
     amenities: "",
+    coverImage: "",
     imageUrl: "",
     mediaUrls: "",
     mediaItems: [],
