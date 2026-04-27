@@ -167,7 +167,21 @@ export default function BoatListingForm({
                 placeholder="https://..."
                 onChange={(event) => onChange("imageUrl", event.target.value)}
               />
+              <p className="help">Use this as the hero photo for marketplace cards and checkout.</p>
               {validationErrors.imageUrl ? <p className="field-error">{validationErrors.imageUrl}</p> : null}
+            </div>
+
+            <div>
+              <label className="label">Gallery URLs</label>
+              <textarea
+                rows={4}
+                className="textarea"
+                value={form.mediaUrls}
+                placeholder="One photo or video URL per line"
+                onChange={(event) => onChange("mediaUrls", event.target.value)}
+              />
+              <p className="help">Keep, remove, or reorder existing media here. Uploads are added after these URLs.</p>
+              {validationErrors.mediaUrls ? <p className="field-error">{validationErrors.mediaUrls}</p> : null}
             </div>
           </div>
 

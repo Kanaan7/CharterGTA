@@ -38,6 +38,16 @@ export function sanitizeImageUrls(values = []) {
   );
 }
 
+export function parseMediaUrlInput(value) {
+  if (Array.isArray(value)) return sanitizeImageUrls(value);
+
+  return sanitizeImageUrls(
+    String(value || "")
+      .split(/\r?\n|,/)
+      .map((item) => item.trim())
+  );
+}
+
 export function inferMediaTypeFromUrl(url) {
   if (!isValidHttpUrl(url)) return "image";
 
@@ -168,6 +178,15 @@ export function validateBoatForm(formState) {
     errors.imageUrl = "Enter a valid image URL that starts with http or https.";
   }
 
+  const rawMediaUrlInput = String(formState?.mediaUrls || "").trim();
+  if (rawMediaUrlInput) {
+    const rawMediaUrls = rawMediaUrlInput.split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
+    const validMediaUrls = parseMediaUrlInput(rawMediaUrlInput);
+    if (rawMediaUrls.length !== validMediaUrls.length) {
+      errors.mediaUrls = "Gallery URLs must start with http or https.";
+    }
+  }
+
   if (formState?.status && !["draft", "live", "archived"].includes(formState.status)) {
     errors.status = "Choose a valid listing status.";
   }
@@ -184,9 +203,18 @@ export function validateBoatForm(formState) {
 
 export function normalizeBoatPayload(formState, uploadedMedia = [], ownerProfile = {}, stripeConnect = {}) {
   const amenities = sanitizeAmenityList(formState?.amenities);
-  const mediaItems = sanitizeMediaItems([...uploadedMedia, formState?.imageUrl ? [{ url: formState.imageUrl }] : []]);
+  const coverUrl = String(formState?.imageUrl || "").trim();
+  const manualMediaUrls = parseMediaUrlInput(formState?.mediaUrls);
+  const mediaItems = sanitizeMediaItems([
+    ...(coverUrl ? [{ url: coverUrl }] : []),
+    ...manualMediaUrls.map((url) => ({ url })),
+    ...uploadedMedia,
+  ]);
   const imageUrls = mediaItems.filter((item) => item.type === "image").map((item) => item.url);
-  const coverItem = mediaItems.find((item) => item.type === "image") || mediaItems.find((item) => item.type === "video");
+  const coverItem =
+    mediaItems.find((item) => item.url === coverUrl) ||
+    mediaItems.find((item) => item.type === "image") ||
+    mediaItems.find((item) => item.type === "video");
   const cover = coverItem?.type === "video" ? coverItem.thumbnailUrl || DEFAULT_BOAT_IMAGE : coverItem?.url || DEFAULT_BOAT_IMAGE;
   const rules = normalizeAvailabilityRules(formState);
 

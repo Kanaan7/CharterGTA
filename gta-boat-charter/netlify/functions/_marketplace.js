@@ -169,7 +169,7 @@ async function syncOwnerStripeState({ db, userId, stripeState, admin }) {
   await batch.commit();
 }
 
-function validateCheckoutPayload({ boat, boatId, date, slot, ownerProfile }) {
+function validateCheckoutPayload({ boat, boatId, date, slot, passengerUser }) {
   const normalizedDate = normalizeDateInput(date);
   const normalizedSlot = normalizeSlotLabel(slot);
 
@@ -178,7 +178,7 @@ function validateCheckoutPayload({ boat, boatId, date, slot, ownerProfile }) {
   }
 
   const boatData = boat.data();
-  if (!boatData?.ownerId || boatData.ownerId === ownerProfile?.uid) {
+  if (!boatData?.ownerId || boatData.ownerId === passengerUser?.uid) {
     return { ok: false, error: "Owners cannot book their own listing." };
   }
 
@@ -200,8 +200,7 @@ function validateCheckoutPayload({ boat, boatId, date, slot, ownerProfile }) {
     return { ok: false, error: "That slot is not part of the listing's published availability." };
   }
 
-  const ownerStripe = ownerProfile?.stripeConnect || {};
-  if (!ownerStripe.accountId || !ownerStripe.chargesEnabled || !ownerStripe.payoutsEnabled) {
+  if (!boatData?.ownerStripeAccountId || boatData?.ownerStripeReady !== true) {
     return { ok: false, error: "Owner payouts are not ready yet for this listing." };
   }
 
@@ -394,6 +393,31 @@ async function expireCheckoutReservation({ admin, db, bookingKey, checkoutSessio
   });
 }
 
+async function failCheckoutReservation({ admin, db, bookingKey, checkoutSessionId, reason = "" }) {
+  if (!bookingKey) return;
+
+  const bookingRef = db.collection("bookings").doc(bookingKey);
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(bookingRef);
+    if (!snapshot.exists) return;
+
+    const booking = snapshot.data();
+    if (booking.checkoutSessionId && checkoutSessionId && booking.checkoutSessionId !== checkoutSessionId) return;
+    if (booking.status === "confirmed") return;
+
+    transaction.set(
+      bookingRef,
+      {
+        status: "payment_failed",
+        failureReason: reason,
+        reservedUntil: null,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+  });
+}
+
 module.exports = {
   buildBookingKey,
   buildCheckoutMetadata,
@@ -408,4 +432,5 @@ module.exports = {
   syncOwnerStripeState,
   validateCheckoutPayload,
   expireCheckoutReservation,
+  failCheckoutReservation,
 };

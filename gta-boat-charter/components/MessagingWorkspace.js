@@ -37,6 +37,15 @@ export default function MessagingWorkspace({
     });
   }, [conversations]);
 
+  useEffect(() => {
+    if (selectedConversation || sortedConversations.length === 0) return;
+    onSelectConversation(sortedConversations[0]);
+  }, [onSelectConversation, selectedConversation, sortedConversations]);
+
+  const selectedOtherUserId = selectedConversation?.participantIds?.find((id) => id !== currentUser?.uid);
+  const selectedOtherName = selectedConversation?.participantNames?.[selectedOtherUserId] || "the other guest";
+  const canSend = Boolean(messageInput.trim() || attachmentPreview) && !sendingMessage;
+
   return (
     <div>
       <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
@@ -107,7 +116,7 @@ export default function MessagingWorkspace({
               <div className="gradient-blue p-4 sm:p-5 text-white">
                 <h3 className="text-lg font-bold">{selectedConversation.boatName || "Conversation"}</h3>
                 <p className="mt-1 text-sm leading-relaxed text-white/80">
-                  Respond quickly so passengers feel confident before they book.
+                  Chatting with {selectedOtherName}. Keep pickup details, expectations, and booking questions in this thread.
                 </p>
               </div>
 
@@ -213,7 +222,7 @@ export default function MessagingWorkspace({
                     type="button"
                     onClick={onSendMessage}
                     className="rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-600 p-3.5 text-white shadow-md transition hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={sendingMessage}
+                    disabled={!canSend}
                     aria-label="Send message"
                   >
                     {sendingMessage ? <span className="text-sm font-bold">...</span> : <Send className="h-5 w-5" />}

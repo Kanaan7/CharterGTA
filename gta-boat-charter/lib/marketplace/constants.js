@@ -50,6 +50,7 @@ export function createBoatFormState(overrides = {}) {
     description: "",
     amenities: "",
     imageUrl: "",
+    mediaUrls: "",
     mediaItems: [],
     status: "live",
     startHour: 9,

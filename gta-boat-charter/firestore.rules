@@ -83,7 +83,8 @@ service cloud.firestore {
     }
 
     match /boats/{boatId} {
-      allow read: if true;
+      allow read: if resource.data.status == "live"
+        || (signedIn() && resource.data.ownerId == request.auth.uid);
 
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly([
@@ -187,7 +188,9 @@ service cloud.firestore {
         && request.resource.data.ownerStripeAccountId == stripeAccountId()
         && request.resource.data.ownerStripeReady == stripeReady();
 
-      allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+      // Listings should be archived so bookings, reviews, and conversations keep
+      // a stable historical reference.
+      allow delete: if false;
     }
 
     match /bookings/{bookingId} {

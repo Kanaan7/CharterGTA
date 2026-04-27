@@ -74,6 +74,7 @@ import {
   isBoatVisibleToMarketplace,
   sanitizeMediaItems,
   normalizeBoatPayload,
+  parseMediaUrlInput,
   sanitizeAmenityList,
   validateBoatForm,
 } from "../lib/marketplace/listings";
@@ -170,10 +171,14 @@ function AuthModal({ onClose, onGoogle, onEmailAuth }) {
 
 function boatToFormState(boat) {
   const rules = boat?.availabilityRules || {};
+  const galleryUrls = getBoatGalleryMedia(boat)
+    .filter((item) => item.url && item.url !== DEFAULT_BOAT_IMAGE && item.url !== boat?.imageUrl)
+    .map((item) => item.url);
 
   return createBoatFormState({
     ...boat,
     amenities: Array.isArray(boat?.amenities) ? boat.amenities.join(", ") : boat?.amenities || "",
+    mediaUrls: galleryUrls.join("\n"),
     status: boat?.status || "live",
     startHour: Number(rules.startHour ?? boat?.startHour ?? 9),
     endHour: Number(rules.endHour ?? boat?.endHour ?? 21),
@@ -347,18 +352,52 @@ export default function MarketplaceApp() {
   }, []);
 
   useEffect(() => {
-    const boatsQuery = query(collection(db, "boats"));
-    const unsubscribe = onSnapshot(
-      boatsQuery,
+    const liveBoatsQuery = query(collection(db, "boats"), where("status", "==", "live"));
+    const listingMap = new Map();
+    let ownerUnsubscribe = null;
+
+    const publishListings = () => {
+      setBoats(Array.from(listingMap.values()));
+    };
+
+    const liveUnsubscribe = onSnapshot(
+      liveBoatsQuery,
       (snapshot) => {
-        const list = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
-        setBoats(list);
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === "removed") {
+            listingMap.delete(change.doc.id);
+            return;
+          }
+          listingMap.set(change.doc.id, { id: change.doc.id, ...change.doc.data() });
+        });
+        publishListings();
       },
-      (error) => console.error("boats snapshot error:", error)
+      (error) => console.error("live boats snapshot error:", error)
     );
 
-    return () => unsubscribe();
-  }, []);
+    if (currentUser?.uid) {
+      const ownerBoatsQuery = query(collection(db, "boats"), where("ownerId", "==", currentUser.uid));
+      ownerUnsubscribe = onSnapshot(
+        ownerBoatsQuery,
+        (snapshot) => {
+          snapshot.docChanges().forEach((change) => {
+            if (change.type === "removed") {
+              listingMap.delete(change.doc.id);
+              return;
+            }
+            listingMap.set(change.doc.id, { id: change.doc.id, ...change.doc.data() });
+          });
+          publishListings();
+        },
+        (error) => console.error("owner boats snapshot error:", error)
+      );
+    }
+
+    return () => {
+      liveUnsubscribe();
+      if (ownerUnsubscribe) ownerUnsubscribe();
+    };
+  }, [currentUser?.uid]);
 
   useEffect(() => {
     if (!selectedBoat?.id) return;
@@ -719,7 +758,8 @@ export default function MarketplaceApp() {
     try {
       let attachmentUrl = null;
       if (previousAttachment) {
-        attachmentUrl = await uploadMessageAttachmentToCloudinary(previousAttachment);
+        const uploadedAttachment = await uploadMessageAttachmentToCloudinary(previousAttachment);
+        attachmentUrl = uploadedAttachment?.url || null;
       }
 
       const payload = {
@@ -834,6 +874,7 @@ export default function MarketplaceApp() {
 
     try {
       const uploadedMedia = await uploadImagesToCloudinary(activeListingFiles);
+      const existingManualUrls = parseMediaUrlInput(activeListingForm?.mediaUrls);
       const ownerProfileForListing = {
         uid: currentUser.uid,
         email: currentUser.email || "",
@@ -847,7 +888,12 @@ export default function MarketplaceApp() {
           : [];
       const mergedMediaItems =
         mode === "edit"
-          ? sanitizeMediaItems([...(Array.isArray(existingMediaItems) ? existingMediaItems : []), ...payload.mediaItems])
+          ? sanitizeMediaItems([
+              ...payload.mediaItems,
+              ...(Array.isArray(existingMediaItems)
+                ? existingMediaItems.filter((item) => existingManualUrls.includes(item.url) || item.url === activeListingForm.imageUrl)
+                : []),
+            ])
           : payload.mediaItems;
       const mergedImageUrls = mergedMediaItems.filter((item) => item.type === "image").map((item) => item.url);
       const coverMedia = mergedMediaItems.find((item) => item.type === "image") || mergedMediaItems.find((item) => item.type === "video");

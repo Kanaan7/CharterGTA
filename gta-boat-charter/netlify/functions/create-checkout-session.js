@@ -44,7 +44,7 @@ exports.handler = async (event) => {
       boatId: String(boatId),
       date,
       slot,
-      ownerProfile: { ...currentUserProfile, uid: decodedToken.uid },
+      passengerUser: { ...currentUserProfile, uid: decodedToken.uid },
     });
 
     if (!validation.ok) {
@@ -101,7 +101,6 @@ exports.handler = async (event) => {
       {
         mode: "payment",
         submit_type: "book",
-        payment_method_types: ["card"],
         line_items: [
           {
             quantity: 1,

@@ -2,6 +2,7 @@ const { getFirebaseAdmin } = require("./_firebaseAdmin");
 const { getStripe } = require("./_stripe");
 const {
   expireCheckoutReservation,
+  failCheckoutReservation,
   finalizeBookingFromSession,
   getStripeConnectState,
   syncOwnerStripeState,
@@ -55,6 +56,18 @@ exports.handler = async (event) => {
           db,
           bookingKey: session?.metadata?.bookingKey,
           checkoutSessionId: session?.id,
+        });
+        break;
+      }
+
+      case "checkout.session.async_payment_failed": {
+        const session = stripeEvent.data.object;
+        await failCheckoutReservation({
+          admin,
+          db,
+          bookingKey: session?.metadata?.bookingKey,
+          checkoutSessionId: session?.id,
+          reason: "Stripe reported an asynchronous payment failure.",
         });
         break;
       }

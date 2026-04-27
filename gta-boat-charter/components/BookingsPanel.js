@@ -85,6 +85,15 @@ export default function BookingsPanel({ bookings, onBack }) {
                     <div className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-blue-600">
                       Booking details <ChevronRight className="h-4 w-4" />
                     </div>
+
+                    {booking.status === "pending_payment" && booking.checkoutUrl ? (
+                      <a
+                        href={booking.checkoutUrl}
+                        className="mt-3 inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-700"
+                      >
+                        Resume checkout
+                      </a>
+                    ) : null}
                   </div>
                 </div>
               </div>

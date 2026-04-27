@@ -104,6 +104,8 @@ export function formatStatusLabel(status) {
       return "Cancelled";
     case "expired":
       return "Expired";
+    case "payment_failed":
+      return "Payment failed";
     case "archived":
       return "Archived";
     default:
@@ -121,6 +123,7 @@ export function getStatusTone(status) {
       return "amber";
     case "cancelled":
     case "expired":
+    case "payment_failed":
     case "archived":
       return "slate";
     default:
